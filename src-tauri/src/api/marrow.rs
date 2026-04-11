@@ -95,7 +95,7 @@ async fn add_favourite(
     State(state): State<AppState>,
     Json(payload): Json<FavouriteRequest>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
-    marrow::add_favourite(&state.db, &payload.item_id).await?;
+    marrow::add_favourite(&state.db, &payload.uniquename).await?;
     Ok(Json(serde_json::json!({ "status": "ok" })))
 }
 
