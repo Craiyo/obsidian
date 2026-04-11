@@ -1,3 +1,10 @@
 pub mod alchemy;
+pub mod chronicle;
+pub mod effigy;
+pub mod hemorrhage;
+pub mod hex;
 pub mod marrow;
 pub mod seance;
+pub mod specter;
+pub mod wail;
+pub mod wraith;

@@ -14,16 +14,24 @@ pub mod alchemy;
 pub mod marrow;
 pub mod seance;
 pub mod settings;
+pub mod chronicle;
+pub mod effigy;
+pub mod hemorrhage;
+pub mod hex;
+pub mod specter;
+pub mod wail;
+pub mod wraith;
 
 #[derive(Clone)]
 pub struct AppState {
     pub db: SqlitePool,
     pub settings_path: PathBuf,
     pub http: reqwest::Client,
+    pub albion_server: crate::settings::AlbionServer,
 }
 
 impl AppState {
-    pub fn new(db: SqlitePool, settings_path: PathBuf) -> Self {
+    pub fn new(db: SqlitePool, settings_path: PathBuf, albion_server: crate::settings::AlbionServer) -> Self {
         let http = reqwest::Client::builder()
             .timeout(std::time::Duration::from_secs(10))
             .build()
@@ -32,6 +40,7 @@ impl AppState {
             db,
             settings_path,
             http,
+            albion_server,
         }
     }
 }
@@ -117,7 +126,14 @@ pub async fn serve(state: AppState) -> Result<(), std::io::Error> {
         .nest("/api/v1/settings", settings::router())
         .nest("/api/v1/seance", seance::router())
         .nest("/api/v1/marrow", marrow::router())
-        .nest("/api/v1/alchemy", alchemy::router())
+        .nest("/api/v1/alchemy",     alchemy::router())
+        .nest("/api/v1/chronicle",   chronicle::router())
+        .nest("/api/v1/effigy",      effigy::router())
+        .nest("/api/v1/hemorrhage",  hemorrhage::router())
+        .nest("/api/v1/hex",         hex::router())
+        .nest("/api/v1/specter",     specter::router())
+        .nest("/api/v1/wail",        wail::router())
+        .nest("/api/v1/wraith",      wraith::router())
         .with_state(state)
         .layer(middleware::from_fn(aggregate_failure_log))
         .layer(CorsLayer::permissive());
