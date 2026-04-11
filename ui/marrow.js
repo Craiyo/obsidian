@@ -392,11 +392,29 @@
       }
 
       list.className = "";
-      list.innerHTML = favs
+      // Resolve display names for each favourite; fall back to uniquename
+      const rows = await Promise.all(
+        favs.map(async (id) => {
+          try {
+            const r = await fetch(`${BASE}/api/v1/marrow/search?q=${encodeURIComponent(id)}`);
+            if (r.ok) {
+              const items = await r.json();
+              const found = Array.isArray(items) ? items.find((it) => it.uniquename === id) : null;
+              const disp = found ? (found.display_name || id) : id;
+              return { id, disp };
+            }
+          } catch (e) {
+            // ignore and fall back
+          }
+          return { id, disp: id };
+        })
+      );
+
+      list.innerHTML = rows
         .map(
-          (id) => `
+          ({ id, disp }) => `
           <div class="fav-row" data-uniquename="${id}">
-            <span class="fav-name">${id}</span>
+            <span class="fav-name">${disp}</span>
             <button class="fav-remove" data-id="${id}">✕</button>
           </div>`
         )
