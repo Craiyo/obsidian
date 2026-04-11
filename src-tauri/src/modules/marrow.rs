@@ -609,5 +609,7 @@ async fn load_item_meta(pool: &SqlitePool, uniquename: &str) -> Result<(String, 
 }
 
 fn iso_to_unix(ts: &str) -> Option<i64> {
-    chrono::DateTime::parse_from_rfc3339(ts).ok().map(|d| d.timestamp())
+    chrono::NaiveDateTime::parse_from_str(ts, "%Y-%m-%dT%H:%M:%S")
+        .ok()
+        .map(|d| d.and_utc().timestamp())
 }

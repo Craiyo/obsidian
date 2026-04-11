@@ -63,7 +63,7 @@
 
       setMetric("price-sell-min", "price-sell-min-date", data.sell_price_min, data.sell_price_min_date);
       setMetric("price-sell-max", "price-sell-max-date", data.sell_price_max, null);
-      setMetric("price-buy-min", "price-buy-min-date", data.buy_price_min, data.buy_price_max_date);
+      setMetric("price-buy-min", "price-buy-min-date", data.buy_price_min, null);
       setMetric("price-buy-max", "price-buy-max-date", data.buy_price_max, data.buy_price_max_date);
 
       source.style.display = "inline-block";
