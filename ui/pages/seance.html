@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Obsidian — Seance</title>
+  <link rel="stylesheet" href="../styles/main.css" />
+</head>
+<body data-page="seance">
+  <div class="app">
+    <aside class="sidebar">
+      <div class="logo"><span class="dot"></span> Obsidian</div>
+      <nav class="nav">
+        <div class="nav-section">Version 1.0</div>
+<a class="nav-item" href="../index.html">Overview</a>
+<a class="nav-item" href="../pages/settings.html">Settings</a>
+<a class="nav-item active" href="../pages/seance.html">Seance</a>
+<a class="nav-item" href="../pages/marrow.html">Marrow</a>
+<a class="nav-item" href="../pages/alchemy.html">Alchemy</a>
+<div class="nav-section">Later Versions</div>
+<a class="nav-item disabled" href="#">Wraith<span class="nav-tag">v2</span></a>
+<a class="nav-item disabled" href="#">Hemorrhage<span class="nav-tag">v2</span></a>
+<a class="nav-item disabled" href="#">Effigy<span class="nav-tag">v3</span></a>
+<a class="nav-item disabled" href="#">Hex<span class="nav-tag">v3</span></a>
+<a class="nav-item disabled" href="#">Specter<span class="nav-tag">v4</span></a>
+<a class="nav-item disabled" href="#">Wail<span class="nav-tag">v4</span></a>
+<a class="nav-item disabled" href="#">Chronicle<span class="nav-tag">v5</span></a>
+      </nav>
+    </aside>
+    <main class="content">
+      <div class="header">
+        <h1>Seance</h1>
+        <span class="badge">v1.0</span>
+      </div>
+      <section class="section"><h2>Session Setup</h2><div class="form-grid">
+  <div class="field"><label>Party Size</label><input id="seance-party-size" type="number" value="10" /></div>
+  <div class="field"><label>Total Loot Value</label><input id="seance-total-loot" type="number" /></div>
+  <div class="field"><label>Split Type</label><input id="seance-split-type" type="text" value="equal" /></div>
+  <div class="field"><label>Notes</label><input id="seance-notes" type="text" /></div>
+</div>
+<div style="margin-top:10px"><button id="seance-create" class="btn">Create Session</button></div>
+<p class="muted">Active Session ID: <span id="seance-session-id">—</span></p></section>
+<section class="section"><h2>Split Session</h2><div class="form-grid">
+  <div class="field"><label>Session ID</label><input id="seance-session-input" type="number" placeholder="Use active session" /></div>
+  <div class="field"><label>Players (name, weight)</label><textarea id="seance-players" rows="4" placeholder="PlayerOne,1
+PlayerTwo,1
+PlayerThree,2"></textarea></div>
+</div>
+<div style="margin-top:10px"><button id="seance-split" class="btn">Apply Split</button></div></section>
+<section class="section"><h2>Wallet Lookup</h2><div class="form-grid">
+  <div class="field"><label>Player Name</label><input id="seance-wallet-player" type="text" /></div>
+</div>
+<div style="margin-top:10px"><button id="seance-wallet" class="btn">Lookup</button></div></section>
+<section class="section"><h2>Withdrawal</h2><div class="form-grid">
+  <div class="field"><label>Player Name</label><input id="seance-withdraw-player" type="text" /></div>
+  <div class="field"><label>Amount</label><input id="seance-withdraw-amount" type="number" /></div>
+  <div class="field"><label>Reason</label><input id="seance-withdraw-reason" type="text" /></div>
+  <div class="field"><label>Notes</label><input id="seance-withdraw-notes" type="text" /></div>
+</div>
+<div style="margin-top:10px"><button id="seance-withdraw" class="btn">Record Withdrawal</button></div></section>
+<section class="section"><h2>Regear Pool</h2><div class="form-grid">
+  <div class="field"><label>Amount</label><input id="seance-regear-amount" type="number" /></div>
+  <div class="field"><label>Reason</label><input id="seance-regear-reason" type="text" /></div>
+  <div class="field"><label>Notes</label><input id="seance-regear-notes" type="text" /></div>
+</div>
+<div style="margin-top:10px"><button id="seance-regear" class="btn">Record Regear</button> <button id="seance-regear-refresh" class="btn">Refresh Balance</button></div></section>
+<section class="section"><h2>Output</h2><pre id="seance-output" class="card"></pre></section>
+      <div class="footer">Obsidian UI — undead ritual v1 draft</div>
+    </main>
+  </div>
+  <script src="../app.js"></script>
+</body>
+</html>

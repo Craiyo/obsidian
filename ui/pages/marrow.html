@@ -1,0 +1,157 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Obsidian — Marrow</title>
+  <link rel="stylesheet" href="../styles/main.css" />
+  <style>
+    .section-card{background:#fff;border:0.5px solid #e5e3ef;border-radius:10px;margin-bottom:14px}
+    .section-head{padding:12px 16px;border-bottom:0.5px solid #f0eef8;display:flex;align-items:center;gap:8px}
+    .section-head h2{font-size:13px;font-weight:600;color:#111;margin:0}
+    .section-body{padding:14px 16px}
+    .row{display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap}
+    .price-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:12px}
+    .metric-card{background:#f8f7fc;border-radius:8px;padding:10px 12px}
+    .metric-label{font-size:10px;color:#888;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px}
+    .metric-value{font-size:18px;font-weight:600;letter-spacing:-0.5px}
+    .metric-value.green{color:#166534}
+    .metric-value.blue{color:#1e40af}
+    .metric-sub{font-size:10px;color:#aaa;margin-top:2px}
+    .two-col{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+    .search-row{display:flex;align-items:center;gap:10px;padding:6px 8px;border-radius:6px;cursor:pointer}
+    .search-row:hover{background:#f5f3ff}
+    .tier-badge{font-size:10px;font-weight:600;color:#6B46C1;background:#ede9fe;padding:2px 5px;border-radius:3px;min-width:22px;text-align:center}
+    .item-name{font-size:13px;color:#111;flex:1}
+    .item-cat{font-size:11px;color:#aaa}
+    .fav-row{display:flex;align-items:center;justify-content:space-between;padding:7px 10px;background:#f8f7fc;border-radius:6px;font-size:12px;cursor:pointer;margin-bottom:3px}
+    .fav-row:hover{background:#ede9fe}
+    .fav-name{font-family:monospace;font-size:12px;color:#333;flex:1}
+    .fav-remove{font-size:11px;color:#bbb;padding:2px 6px;border-radius:4px;border:none;background:none;cursor:pointer}
+    .fav-remove:hover{background:#fee2e2;color:#dc2626}
+    .source-badge{font-size:10px;padding:2px 8px;border-radius:4px;font-weight:500;display:none}
+    .muted{font-size:12px;color:#aaa;padding:8px 0}
+    .error-msg{font-size:12px;color:#dc2626;margin-top:6px}
+    .gold-pill{display:inline-flex;align-items:center;gap:6px;font-size:12px;color:#92400e;background:#fefce8;border:0.5px solid #fde047;border-radius:20px;padding:3px 12px}
+    .gold-dot{width:6px;height:6px;border-radius:50%;background:#ca8a04}
+    .btn-primary{background:#6B46C1;color:#fff;border:1px solid #6B46C1;border-radius:8px;padding:8px 14px;cursor:pointer}
+    .btn-primary:hover{background:#5a38a8}
+    .btn-primary:disabled{opacity:0.7;cursor:not-allowed}
+    .input, .select {background:#fff;border:1px solid #ddd;border-radius:8px;padding:8px 10px;color:#111}
+    .w60{width:60px}
+    .top-bar{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px}
+    .top-left{display:flex;align-items:center;gap:8px}
+    .badge{font-size:10px;padding:2px 8px;border-radius:999px;background:#ede9fe;color:#6B46C1}
+    .hist-wrap{position:relative;min-height:180px}
+    #hist-placeholder{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:#aaa;font-size:12px}
+    .skeleton{opacity:0.6}
+    @media (max-width: 980px){.price-grid{grid-template-columns:repeat(2,1fr)}.two-col{grid-template-columns:1fr}}
+  </style>
+</head>
+<body data-page="marrow">
+  <div class="app">
+    <aside class="sidebar">
+      <div class="sidebar-logo">
+        <div class="logo-gem"></div>
+        <span class="logo-text">Obsidian</span>
+      </div>
+      <nav class="sidebar-nav">
+        <div class="nav-group-label">v1.0</div>
+        <a class="nav-item" href="../index.html">Overview</a>
+        <a class="nav-item" href="./settings.html">Settings</a>
+        <a class="nav-item" href="./seance.html">Seance</a>
+        <a class="nav-item active" href="./marrow.html">Marrow</a>
+        <a class="nav-item" href="./alchemy.html">Alchemy</a>
+        <div class="nav-group-label">Later</div>
+        <a class="nav-item disabled">Wraith<span class="nav-tag">v2</span></a>
+        <a class="nav-item disabled">Hemorrhage<span class="nav-tag">v2</span></a>
+        <a class="nav-item disabled">Effigy<span class="nav-tag">v3</span></a>
+        <a class="nav-item disabled">Hex<span class="nav-tag">v3</span></a>
+        <a class="nav-item disabled">Specter<span class="nav-tag">v4</span></a>
+        <a class="nav-item disabled">Wail<span class="nav-tag">v4</span></a>
+        <a class="nav-item disabled">Chronicle<span class="nav-tag">v5</span></a>
+      </nav>
+    </aside>
+    <main class="content">
+      <div class="top-bar">
+        <div class="top-left">
+          <h1>Marrow</h1>
+          <span class="badge">Market Tracker</span>
+        </div>
+        <div id="gold-pill" class="gold-pill skeleton"><span class="gold-dot"></span><span>Gold: loading...</span></div>
+      </div>
+
+      <section id="section-price" class="section-card">
+        <div class="section-head"><h2>Price Lookup</h2></div>
+        <div class="section-body">
+          <div class="row">
+            <input id="price-item" class="input" type="text" placeholder="T4_BAG" />
+            <select id="price-city" class="select">
+              <option>Bridgewatch</option><option>Caerleon</option><option>Fort Sterling</option>
+              <option>Lymhurst</option><option>Martlock</option><option>Thetford</option>
+            </select>
+            <input id="price-quality" class="input w60" type="number" min="1" max="5" value="1" />
+            <button id="price-fetch" class="btn-primary">Fetch</button>
+            <span id="price-source" class="source-badge"></span>
+          </div>
+          <div id="price-error" class="error-msg"></div>
+          <div class="price-grid">
+            <div class="metric-card"><div class="metric-label">Sell min</div><div id="price-sell-min" class="metric-value green">—</div><div id="price-sell-min-date" class="metric-sub"></div></div>
+            <div class="metric-card"><div class="metric-label">Sell max</div><div id="price-sell-max" class="metric-value green">—</div><div id="price-sell-max-date" class="metric-sub"></div></div>
+            <div class="metric-card"><div class="metric-label">Buy min</div><div id="price-buy-min" class="metric-value blue">—</div><div id="price-buy-min-date" class="metric-sub"></div></div>
+            <div class="metric-card"><div class="metric-label">Buy max</div><div id="price-buy-max" class="metric-value blue">—</div><div id="price-buy-max-date" class="metric-sub"></div></div>
+          </div>
+        </div>
+      </section>
+
+      <section id="section-history" class="section-card">
+        <div class="section-head"><h2>Price History</h2></div>
+        <div class="section-body">
+          <div class="row">
+            <input id="hist-item" class="input" type="text" placeholder="T4_BAG" />
+            <select id="hist-city" class="select">
+              <option>Bridgewatch</option><option>Caerleon</option><option>Fort Sterling</option>
+              <option>Lymhurst</option><option>Martlock</option><option>Thetford</option>
+            </select>
+            <input id="hist-days" class="input w60" type="number" min="1" max="30" value="7" />
+            <button id="hist-fetch" class="btn-primary">Fetch</button>
+          </div>
+          <div id="hist-error" class="error-msg"></div>
+          <div class="hist-wrap">
+            <div id="hist-placeholder">Fetch history to render chart</div>
+            <canvas id="hist-chart" height="160"></canvas>
+          </div>
+        </div>
+      </section>
+
+      <div class="two-col">
+        <section id="section-search" class="section-card">
+          <div class="section-head"><h2>Item Search</h2></div>
+          <div class="section-body">
+            <div class="row">
+              <input id="search-q" class="input" type="text" placeholder="bag, bow, T4_2H…" />
+              <button id="search-btn" class="btn-primary">Search</button>
+            </div>
+            <div id="search-results" class="muted">Type to search items</div>
+          </div>
+        </section>
+
+        <section id="section-favourites" class="section-card">
+          <div class="section-head"><h2>Favourites</h2></div>
+          <div class="section-body">
+            <div class="row">
+              <input id="fav-item" class="input" type="text" placeholder="T4_BAG" />
+              <button id="fav-add" class="btn-primary">Add</button>
+            </div>
+            <div id="fav-error" class="error-msg"></div>
+            <div id="fav-list" class="muted">No favourites yet</div>
+          </div>
+        </section>
+      </div>
+    </main>
+  </div>
+  <script src="../app.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+  <script src="../marrow.js"></script>
+</body>
+</html>

@@ -1,0 +1,27 @@
+{
+  "build": {
+    "beforeDevCommand": "",
+    "beforeBuildCommand": "",
+    "devPath": "../ui",
+    "distDir": "../ui"
+  },
+  "package": {
+    "productName": "Obsidian",
+    "version": "0.1.0"
+  },
+  "tauri": {
+    "allowlist": {
+      "http": { "all": true }
+    },
+    "security": {
+      "csp": "default-src 'self'; img-src 'self' data:; style-src 'self'; script-src 'self'; connect-src http://127.0.0.1:* http://localhost:*"
+    },
+    "windows": [
+      {
+        "title": "Obsidian",
+        "width": 1200,
+        "height": 800
+      }
+    ]
+  }
+}

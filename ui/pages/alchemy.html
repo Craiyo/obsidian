@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Obsidian — Alchemy</title>
+  <link rel="stylesheet" href="../styles/main.css" />
+</head>
+<body data-page="alchemy">
+  <div class="app">
+    <aside class="sidebar">
+      <div class="logo"><span class="dot"></span> Obsidian</div>
+      <nav class="nav">
+        <div class="nav-section">Version 1.0</div>
+<a class="nav-item" href="../index.html">Overview</a>
+<a class="nav-item" href="../pages/settings.html">Settings</a>
+<a class="nav-item" href="../pages/seance.html">Seance</a>
+<a class="nav-item" href="../pages/marrow.html">Marrow</a>
+<a class="nav-item active" href="../pages/alchemy.html">Alchemy</a>
+<div class="nav-section">Later Versions</div>
+<a class="nav-item disabled" href="#">Wraith<span class="nav-tag">v2</span></a>
+<a class="nav-item disabled" href="#">Hemorrhage<span class="nav-tag">v2</span></a>
+<a class="nav-item disabled" href="#">Effigy<span class="nav-tag">v3</span></a>
+<a class="nav-item disabled" href="#">Hex<span class="nav-tag">v3</span></a>
+<a class="nav-item disabled" href="#">Specter<span class="nav-tag">v4</span></a>
+<a class="nav-item disabled" href="#">Wail<span class="nav-tag">v4</span></a>
+<a class="nav-item disabled" href="#">Chronicle<span class="nav-tag">v5</span></a>
+      </nav>
+    </aside>
+    <main class="content">
+      <div class="header">
+        <h1>Alchemy</h1>
+        <span class="badge">v1.0</span>
+      </div>
+      <section class="section"><h2>Profit Calculator</h2><div class="form-grid">
+  <div class="field"><label>Item ID</label><input id="alchemy-item-id" type="text" placeholder="T4_BAG" /></div>
+  <div class="field"><label>City</label><input id="alchemy-city" type="text" value="Bridgewatch" /></div>
+  <div class="field"><label>Return Rate %</label><input id="alchemy-return-rate" type="number" value="15" /></div>
+  <div class="field"><label>Crafting Fee %</label><input id="alchemy-fee" type="number" value="6" /></div>
+  <div class="field"><label>Bonus %</label><input id="alchemy-bonus" type="number" value="0" /></div>
+  <div class="field"><label>Materials (item, qty, unit cost optional)</label><textarea id="alchemy-materials" rows="4" placeholder="T4_METALBAR,16
+T4_LEATHER,8"></textarea></div>
+</div>
+<div style="margin-top:10px"><button id="alchemy-calc" class="btn">Calculate</button></div>
+<pre id="alchemy-output" class="card"></pre></section>
+<section class="section"><h2>Save Scenario</h2><div class="form-grid">
+  <div class="field"><label>Name</label><input id="alchemy-scenario-name" type="text" placeholder="Bridgewatch Bags" /></div>
+</div>
+<div style="margin-top:10px"><button id="alchemy-save" class="btn">Save Scenario</button> <button id="alchemy-refresh" class="btn">Refresh Scenarios</button></div>
+<pre id="alchemy-scenarios-output" class="card"></pre></section>
+      <div class="footer">Obsidian UI — undead ritual v1 draft</div>
+    </main>
+  </div>
+  <script src="../app.js"></script>
+</body>
+</html>
