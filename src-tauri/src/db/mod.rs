@@ -49,7 +49,7 @@ async fn migrate(pool: &SqlitePool) -> Result<(), DbError> {
     Ok(())
 }
 
-pub async fn seed_items_if_empty(pool: &SqlitePool, app: &tauri::AppHandle) -> Result<(), DbError> {
+pub async fn seed_items_if_empty(pool: &SqlitePool, _app: &tauri::AppHandle) -> Result<(), DbError> {
     let count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM items")
         .fetch_one(pool)
         .await?;
@@ -58,12 +58,21 @@ pub async fn seed_items_if_empty(pool: &SqlitePool, app: &tauri::AppHandle) -> R
         return Ok(());
     }
 
-    let items_path = app
-        .path_resolver()
-        .resolve_resource("../assets/items.json")
-        .ok_or(DbError::DataDirMissing)?;
+    // Try path relative to the binary first, then fall back to dev path
+    let candidates = [
+        std::path::PathBuf::from("assets/items.json"),
+        std::path::PathBuf::from("../assets/items.json"),
+    ];
 
-    let rows = item_map::parse_items_json(&items_path)
+    let items_path = candidates
+        .iter()
+        .find(|p| p.exists())
+        .ok_or_else(|| DbError::Io(std::io::Error::new(
+            std::io::ErrorKind::NotFound,
+            "assets/items.json not found",
+        )))?;
+
+    let rows = item_map::parse_items_json(items_path)
         .map_err(|e| DbError::Io(std::io::Error::new(std::io::ErrorKind::Other, e.to_string())))?;
 
     item_map::insert_items(pool, rows).await?;
