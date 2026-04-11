@@ -21,6 +21,7 @@
     .two-col{display:grid;grid-template-columns:1fr 1fr;gap:14px}
     .search-row{display:flex;align-items:center;gap:10px;padding:6px 8px;border-radius:6px;cursor:pointer}
     .search-row:hover{background:#f5f3ff}
+    .search-row.active{background:#ede9fe}
     .tier-badge{font-size:10px;font-weight:600;color:#6B46C1;background:#ede9fe;padding:2px 5px;border-radius:3px;min-width:22px;text-align:center}
     .item-name{font-size:13px;color:#111;flex:1}
     .item-cat{font-size:11px;color:#aaa}
@@ -44,8 +45,12 @@
     .badge{font-size:10px;padding:2px 8px;border-radius:999px;background:#ede9fe;color:#6B46C1}
     .hist-wrap{position:relative;min-height:180px}
     #hist-placeholder{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:#aaa;font-size:12px}
+    .combo-wrap{position:relative;min-width:240px}
+    .combo-label{display:block;font-size:11px;color:#666;margin-top:4px;min-height:14px}
+    .combo-menu{position:absolute;top:100%;left:0;right:0;z-index:20;background:#fff;border:1px solid #e5e3ef;border-radius:8px;margin-top:6px;max-height:240px;overflow:auto;box-shadow:0 8px 24px rgba(17,17,17,0.08)}
+    .combo-empty{padding:8px 10px;font-size:12px;color:#aaa}
     .skeleton{opacity:0.6}
-    @media (max-width: 980px){.price-grid{grid-template-columns:repeat(2,1fr)}.two-col{grid-template-columns:1fr}}
+    @media (max-width: 980px){.price-grid{grid-template-columns:repeat(2,1fr)}}
   </style>
 </head>
 <body data-page="marrow">
@@ -85,7 +90,10 @@
         <div class="section-head"><h2>Price Lookup</h2></div>
         <div class="section-body">
           <div class="row">
-            <input id="price-item" class="input" type="text" placeholder="T4_BAG" />
+            <div class="combo-wrap">
+              <input id="price-item" class="input" type="text" placeholder="T4_BAG" autocomplete="off" />
+              <span id="price-item-label" class="combo-label"></span>
+            </div>
             <select id="price-city" class="select">
               <option>Bridgewatch</option><option>Caerleon</option><option>Fort Sterling</option>
               <option>Lymhurst</option><option>Martlock</option><option>Thetford</option>
@@ -108,7 +116,10 @@
         <div class="section-head"><h2>Price History</h2></div>
         <div class="section-body">
           <div class="row">
-            <input id="hist-item" class="input" type="text" placeholder="T4_BAG" />
+            <div class="combo-wrap">
+              <input id="hist-item" class="input" type="text" placeholder="T4_BAG" autocomplete="off" />
+              <span id="hist-item-label" class="combo-label"></span>
+            </div>
             <select id="hist-city" class="select">
               <option>Bridgewatch</option><option>Caerleon</option><option>Fort Sterling</option>
               <option>Lymhurst</option><option>Martlock</option><option>Thetford</option>
@@ -124,30 +135,17 @@
         </div>
       </section>
 
-      <div class="two-col">
-        <section id="section-search" class="section-card">
-          <div class="section-head"><h2>Item Search</h2></div>
-          <div class="section-body">
-            <div class="row">
-              <input id="search-q" class="input" type="text" placeholder="bag, bow, T4_2H…" />
-              <button id="search-btn" class="btn-primary">Search</button>
-            </div>
-            <div id="search-results" class="muted">Type to search items</div>
+      <section id="section-favourites" class="section-card">
+        <div class="section-head"><h2>Favourites</h2></div>
+        <div class="section-body">
+          <div class="row">
+            <input id="fav-item" class="input" type="text" placeholder="T4_BAG" />
+            <button id="fav-add" class="btn-primary">Add</button>
           </div>
-        </section>
-
-        <section id="section-favourites" class="section-card">
-          <div class="section-head"><h2>Favourites</h2></div>
-          <div class="section-body">
-            <div class="row">
-              <input id="fav-item" class="input" type="text" placeholder="T4_BAG" />
-              <button id="fav-add" class="btn-primary">Add</button>
-            </div>
-            <div id="fav-error" class="error-msg"></div>
-            <div id="fav-list" class="muted">No favourites yet</div>
-          </div>
-        </section>
-      </div>
+          <div id="fav-error" class="error-msg"></div>
+          <div id="fav-list" class="muted">No favourites yet</div>
+        </div>
+      </section>
     </main>
   </div>
   <script src="../app.js"></script>

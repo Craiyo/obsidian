@@ -1,6 +1,7 @@
 (() => {
   const BASE = "http://127.0.0.1:38991";
   let histChart = null;
+  const comboState = {};
 
   const $ = (id) => document.getElementById(id);
 
@@ -11,9 +12,146 @@
   }
 
   function fillInputs(uniquename) {
-    // Shared behavior: clicking a search result/favourite fills both price and history item IDs.
-    $("price-item").value = uniquename;
-    $("hist-item").value = uniquename;
+    // Shared behavior: clicking a favourite fills both price and history item IDs.
+    setComboValue("price-item", uniquename);
+    setComboValue("hist-item", uniquename);
+  }
+
+  function setComboValue(inputId, uniquename, displayName) {
+    const state = comboState[inputId];
+    if (!state) return;
+    state.uniquename = uniquename || "";
+    state.input.value = uniquename || "";
+    state.label.textContent = uniquename
+      ? `${displayName || uniquename} · ${uniquename}`
+      : "";
+  }
+
+  function closeMenu(inputId) {
+    const state = comboState[inputId];
+    if (!state) return;
+    state.menu.style.display = "none";
+    state.activeIndex = -1;
+  }
+
+  function renderMenu(inputId) {
+    const state = comboState[inputId];
+    if (!state) return;
+    const { results, menu } = state;
+    if (!results.length) {
+      menu.innerHTML = `<div class="combo-empty">No items found</div>`;
+      menu.style.display = "block";
+      return;
+    }
+    menu.innerHTML = results
+      .map((it, idx) => {
+        const sub = `${it.shopcategory || ""} > ${it.shopsubcategory1 || ""}`.replace(/^ > | > $/g, "");
+        return `<div class="search-row${idx === state.activeIndex ? " active" : ""}" data-idx="${idx}">
+          <span class="tier-badge">T${it.tier}</span>
+          <span class="item-name">${it.display_name}</span>
+          <span class="item-cat">${sub}</span>
+        </div>`;
+      })
+      .join("");
+    menu.style.display = "block";
+    menu.querySelectorAll(".search-row").forEach((row) => {
+      row.addEventListener("mousedown", (e) => {
+        e.preventDefault();
+        const idx = Number(row.dataset.idx);
+        const it = state.results[idx];
+        if (!it) return;
+        state.onSelect(it.uniquename);
+        setComboValue(inputId, it.uniquename, it.display_name);
+        closeMenu(inputId);
+      });
+    });
+  }
+
+  function makeAutocomplete(inputId, onSelect) {
+    const input = $(inputId);
+    const wrap = input.closest(".combo-wrap");
+    const label = $(`${inputId}-label`);
+    const menu = document.createElement("div");
+    menu.className = "combo-menu";
+    menu.style.display = "none";
+    wrap.appendChild(menu);
+
+    comboState[inputId] = {
+      input,
+      label,
+      menu,
+      onSelect,
+      uniquename: "",
+      results: [],
+      activeIndex: -1,
+      timer: null,
+      reqId: 0,
+    };
+
+    input.addEventListener("input", () => {
+      const state = comboState[inputId];
+      const q = input.value.trim();
+      if (!q) {
+        clearTimeout(state.timer);
+        state.uniquename = "";
+        state.label.textContent = "";
+        state.results = [];
+        closeMenu(inputId);
+        return;
+      }
+      if (state.uniquename && q !== state.uniquename) {
+        state.uniquename = "";
+        state.label.textContent = "";
+      }
+      clearTimeout(state.timer);
+      state.timer = setTimeout(async () => {
+        const curReqId = ++state.reqId;
+        try {
+          const r = await fetch(`${BASE}/api/v1/marrow/search?q=${encodeURIComponent(q)}`);
+          if (!r.ok) throw new Error();
+          const items = await r.json();
+          if (curReqId !== state.reqId) return;
+          state.results = Array.isArray(items) ? items : [];
+          state.activeIndex = state.results.length ? 0 : -1;
+          renderMenu(inputId);
+        } catch {
+          if (curReqId !== state.reqId) return;
+          state.results = [];
+          state.activeIndex = -1;
+          state.menu.innerHTML = `<div class="combo-empty">Search failed</div>`;
+          state.menu.style.display = "block";
+        }
+      }, 300);
+    });
+
+    input.addEventListener("keydown", (e) => {
+      const state = comboState[inputId];
+      const open = state.menu.style.display !== "none";
+      if (e.key === "ArrowDown" && state.results.length) {
+        e.preventDefault();
+        state.activeIndex = Math.min(state.activeIndex + 1, state.results.length - 1);
+        renderMenu(inputId);
+      } else if (e.key === "ArrowUp" && state.results.length) {
+        e.preventDefault();
+        state.activeIndex = Math.max(state.activeIndex - 1, 0);
+        renderMenu(inputId);
+      } else if (e.key === "Enter" && open && state.activeIndex >= 0 && state.results[state.activeIndex]) {
+        e.preventDefault();
+        const it = state.results[state.activeIndex];
+        state.onSelect(it.uniquename);
+        setComboValue(inputId, it.uniquename, it.display_name);
+        closeMenu(inputId);
+      } else if (e.key === "Escape") {
+        closeMenu(inputId);
+      }
+    });
+
+    input.addEventListener("focus", () => {
+      const state = comboState[inputId];
+      if (state.results.length) {
+        renderMenu(inputId);
+      }
+    });
   }
 
   async function loadGold() {
@@ -37,7 +175,7 @@
   }
 
   async function fetchPrice() {
-    const item = $("price-item").value.trim();
+    const item = comboState["price-item"]?.uniquename || "";
     const city = $("price-city").value;
     const quality = $("price-quality").value;
     const btn = $("price-fetch");
@@ -84,7 +222,7 @@
   }
 
   async function fetchHistory() {
-    const item = $("hist-item").value.trim();
+    const item = comboState["hist-item"]?.uniquename || "";
     const city = $("hist-city").value;
     const days = $("hist-days").value;
     const btn = $("hist-fetch");
@@ -173,46 +311,6 @@
     }
   }
 
-  async function searchItems() {
-    const q = $("search-q").value.trim();
-    const out = $("search-results");
-    if (!q) {
-      out.className = "muted";
-      out.textContent = "Type to search items";
-      return;
-    }
-
-    try {
-      const r = await fetch(`${BASE}/api/v1/marrow/search?q=${encodeURIComponent(q)}`);
-      if (!r.ok) throw new Error();
-      const items = await r.json();
-      if (!items.length) {
-        out.className = "muted";
-        out.textContent = "No items found";
-        return;
-      }
-
-      out.className = "";
-      out.innerHTML = items
-        .map(
-          (it) => `
-          <div class="search-row" data-uniquename="${it.uniquename}">
-            <span class="tier-badge">T${it.tier}</span>
-            <span class="item-name">${it.display_name}</span>
-            <span class="item-cat">${it.shopsubcategory1 || ""}</span>
-          </div>`
-        )
-        .join("");
-
-      out.querySelectorAll(".search-row").forEach((row) => {
-        row.addEventListener("click", () => fillInputs(row.dataset.uniquename));
-      });
-    } catch {
-      out.className = "error-msg";
-      out.textContent = "Search failed";
-    }
-  }
-
   async function addFavourite() {
     const input = $("fav-item");
     const id = input.value.trim();
@@ -293,11 +391,18 @@
   document.addEventListener("DOMContentLoaded", () => {
     $("price-fetch").addEventListener("click", fetchPrice);
     $("hist-fetch").addEventListener("click", fetchHistory);
-    $("search-btn").addEventListener("click", searchItems);
-    $("search-q").addEventListener("keydown", (e) => {
-      if (e.key === "Enter") searchItems();
-    });
     $("fav-add").addEventListener("click", addFavourite);
+    makeAutocomplete("price-item", () => {});
+    makeAutocomplete("hist-item", () => {});
+    document.addEventListener("click", (e) => {
+      ["price-item", "hist-item"].forEach((id) => {
+        const state = comboState[id];
+        if (!state) return;
+        if (!state.input.closest(".combo-wrap").contains(e.target)) {
+          closeMenu(id);
+        }
+      });
+    });
 
     loadGold();
     loadFavourites();

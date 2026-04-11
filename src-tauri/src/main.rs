@@ -12,6 +12,11 @@ fn main() {
             let app_handle = app.handle();
             let pool = tauri::async_runtime::block_on(db::init_pool(&app_handle))
                 .map_err(|e| Box::<dyn std::error::Error>::from(e))?;
+
+            // Seed items table from assets/items.json if it's empty
+            tauri::async_runtime::block_on(db::seed_items_if_empty(&pool, &app_handle))
+                .map_err(|e| Box::<dyn std::error::Error>::from(e))?;
+
             let settings_path = settings::settings_path(&app_handle)
                 .map_err(|e| Box::<dyn std::error::Error>::from(e))?;
 

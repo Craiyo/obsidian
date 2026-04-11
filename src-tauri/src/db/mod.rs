@@ -3,6 +3,8 @@ use std::{path::PathBuf, str::FromStr};
 use tauri::AppHandle;
 use thiserror::Error;
 
+pub mod item_map;
+
 #[derive(Debug, Error)]
 pub enum DbError {
     #[error("data dir unavailable")]
@@ -44,5 +46,28 @@ fn db_path(_app: &AppHandle) -> Result<PathBuf, DbError> {
 
 async fn migrate(pool: &SqlitePool) -> Result<(), DbError> {
     sqlx::migrate!("src/db/migrations").run(pool).await?;
+    Ok(())
+}
+
+pub async fn seed_items_if_empty(pool: &SqlitePool, app: &tauri::AppHandle) -> Result<(), DbError> {
+    let count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM items")
+        .fetch_one(pool)
+        .await?;
+
+    if count > 0 {
+        return Ok(());
+    }
+
+    let items_path = app
+        .path_resolver()
+        .resolve_resource("../assets/items.json")
+        .ok_or(DbError::DataDirMissing)?;
+
+    let rows = item_map::parse_items_json(&items_path)
+        .map_err(|e| DbError::Io(std::io::Error::new(std::io::ErrorKind::Other, e.to_string())))?;
+
+    item_map::insert_items(pool, rows).await?;
+
+    eprintln!("[db] items seeded");
     Ok(())
 }

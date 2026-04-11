@@ -1,9 +1,7 @@
-use std::{fs, path::Path};
-
-use anyhow::{Context, Result};
-use rusqlite::{params, Connection};
 use serde::Serialize;
 use serde_json::Value;
+use std::{fs, path::Path};
+use sqlx::SqlitePool;
 
 #[derive(Debug, Clone, Serialize)]
 pub struct CraftResource {
@@ -44,15 +42,15 @@ struct CraftingData {
     craft_resources: Option<String>,
 }
 
-pub fn parse_items_json(path: &Path) -> Result<Vec<ItemRow>> {
-    let content = fs::read_to_string(path)
-        .with_context(|| format!("failed to read items json at {}", path.display()))?;
-    let root: Value = serde_json::from_str(&content).context("failed to parse items json")?;
+/// Parse the items.json file and return rows for insertion.
+pub fn parse_items_json(path: &Path) -> Result<Vec<ItemRow>, Box<dyn std::error::Error>> {
+    let content = fs::read_to_string(path)?;
+    let root: Value = serde_json::from_str(&content)?;
 
     let items_obj = root
         .get("items")
         .and_then(Value::as_object)
-        .context("missing top-level items object")?;
+        .ok_or_else(|| "missing top-level items object")?;
 
     let mut out = Vec::new();
 
@@ -62,12 +60,14 @@ pub fn parse_items_json(path: &Path) -> Result<Vec<ItemRow>> {
         }
 
         for item in as_vec(node) {
-            let Some(item_obj) = item.as_object() else {
-                continue;
+            let item_obj = match item.as_object() {
+                Some(o) => o,
+                None => continue,
             };
 
-            let Some(base_uniquename) = get_str(item_obj, "@uniquename") else {
-                continue;
+            let base_uniquename = match get_str(item_obj, "@uniquename") {
+                Some(s) => s,
+                None => continue,
             };
 
             let tier = get_i64(item_obj, "@tier").unwrap_or(0);
@@ -96,7 +96,7 @@ pub fn parse_items_json(path: &Path) -> Result<Vec<ItemRow>> {
             };
             out.push(base.clone());
 
-            // Generate synthetic rows for enchanted variants: base_uniquename@N.
+            // enchanted variants
             if let Some(enchantments) = item_obj.get("enchantments") {
                 let ench_rows = parse_enchantments(enchantments);
                 for ench in ench_rows {
@@ -123,50 +123,6 @@ pub fn parse_items_json(path: &Path) -> Result<Vec<ItemRow>> {
     }
 
     Ok(out)
-}
-
-pub fn seed_items(conn: &Connection, items: &[ItemRow]) -> Result<()> {
-    let tx = conn.transaction().context("failed to begin transaction")?;
-    {
-        let mut stmt = tx.prepare(
-            "INSERT OR REPLACE INTO items (
-                uniquename, display_name, item_type, tier, enchantment_level,
-                shopcategory, shopsubcategory1, shopsubcategory2, resource_type,
-                show_in_marketplace, craftable, craft_silver, craft_time, craft_focus,
-                craft_amount, craft_resources, upgrade_resource, upgrade_count
-             ) VALUES (
-                ?, ?, ?, ?, ?,
-                ?, ?, ?, ?,
-                ?, ?, ?, ?, ?,
-                ?, ?, ?, ?
-             )",
-        )?;
-
-        for item in items {
-            stmt.execute(params![
-                item.uniquename,
-                item.display_name,
-                item.item_type,
-                item.tier,
-                item.enchantment_level,
-                item.shopcategory,
-                item.shopsubcategory1,
-                item.shopsubcategory2,
-                item.resource_type,
-                bool_to_i64(item.show_in_marketplace),
-                bool_to_i64(item.craftable),
-                item.craft_silver,
-                item.craft_time,
-                item.craft_focus,
-                item.craft_amount,
-                item.craft_resources,
-                item.upgrade_resource,
-                item.upgrade_count
-            ])?;
-        }
-    }
-    tx.commit().context("failed to commit item seed transaction")?;
-    Ok(())
 }
 
 #[derive(Debug, Clone, Default)]
@@ -385,4 +341,80 @@ fn title_case_token(token: &str) -> String {
 
 fn bool_to_i64(v: bool) -> i64 {
     if v { 1 } else { 0 }
+}
+
+pub async fn insert_items(pool: &SqlitePool, rows: Vec<ItemRow>) -> Result<(), sqlx::Error> {
+    if rows.is_empty() {
+        return Ok(());
+    }
+
+    // Batch size chosen to avoid SQLite variable limits
+    let chunk_size = 500usize;
+    let cols = [
+        "uniquename",
+        "display_name",
+        "item_type",
+        "tier",
+        "enchantment_level",
+        "shopcategory",
+        "shopsubcategory1",
+        "shopsubcategory2",
+        "resource_type",
+        "show_in_marketplace",
+        "craftable",
+        "craft_silver",
+        "craft_time",
+        "craft_focus",
+        "craft_amount",
+        "craft_resources",
+        "upgrade_resource",
+        "upgrade_count",
+    ];
+
+    let col_list = cols.join(", ");
+
+    let mut idx = 0usize;
+    while idx < rows.len() {
+        let end = std::cmp::min(idx + chunk_size, rows.len());
+        let batch = &rows[idx..end];
+        let mut placeholders = Vec::with_capacity(batch.len());
+        for _ in batch.iter() {
+            placeholders.push(format!("({})", vec!["?"; cols.len()].join(", ")));
+        }
+        let sql = format!(
+            "INSERT OR IGNORE INTO items ({}) VALUES {}",
+            col_list,
+            placeholders.join(", ")
+        );
+
+        let mut query = sqlx::query(&sql);
+
+        for r in batch.iter() {
+            query = query
+                .bind(&r.uniquename)
+                .bind(&r.display_name)
+                .bind(&r.item_type)
+                .bind(r.tier)
+                .bind(r.enchantment_level)
+                .bind(&r.shopcategory)
+                .bind(&r.shopsubcategory1)
+                .bind(&r.shopsubcategory2)
+                .bind(&r.resource_type)
+                .bind(bool_to_i64(r.show_in_marketplace))
+                .bind(bool_to_i64(r.craftable))
+                .bind(r.craft_silver)
+                .bind(r.craft_time)
+                .bind(r.craft_focus)
+                .bind(r.craft_amount)
+                .bind(&r.craft_resources)
+                .bind(&r.upgrade_resource)
+                .bind(r.upgrade_count);
+        }
+
+        query.execute(pool).await?;
+
+        idx = end;
+    }
+
+    Ok(())
 }
