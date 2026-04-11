@@ -71,9 +71,9 @@ pub async fn seed_items_if_empty(pool: &SqlitePool, _app: &tauri::AppHandle) -> 
         "assets/items.json not found",
     )))?;
 
-    let display_names_path = candidates_for("assets/item_display_names.json").ok_or_else(|| DbError::Io(std::io::Error::new(
+    let display_names_path = candidates_for("assets/item_names.json").ok_or_else(|| DbError::Io(std::io::Error::new(
         std::io::ErrorKind::NotFound,
-        "assets/item_display_names.json not found",
+        "assets/item_names.json not found",
     )))?;
 
     let display_names = item_map::load_display_names(&display_names_path)

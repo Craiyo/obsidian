@@ -42,10 +42,18 @@ struct CraftingData {
     craft_resources: Option<String>,
 }
 
-/// Load display names JSON ({ "UNIQUENAME": "Display Name" })
+/// Load display names from assets/item_names.json (array of objects with UniqueName and LocalizedNames)
 pub fn load_display_names(path: &Path) -> Result<HashMap<String, String>, Box<dyn std::error::Error>> {
     let content = fs::read_to_string(path)?;
-    let map: HashMap<String, String> = serde_json::from_str(&content)?;
+    let items: Vec<Value> = serde_json::from_str(&content)?;
+    let mut map = HashMap::new();
+    for item in items {
+        if let Some(uniquename) = item.get("UniqueName").and_then(Value::as_str) {
+            if let Some(name) = item.get("LocalizedNames").and_then(|ln| ln.get("EN-US")).and_then(Value::as_str) {
+                map.insert(uniquename.to_string(), name.to_string());
+            }
+        }
+    }
     Ok(map)
 }
 
