@@ -66,6 +66,7 @@ pub struct ScenarioRow {
 pub async fn calculate(
     pool: &SqlitePool,
     client: &reqwest::Client,
+    server: crate::settings::AlbionServer,
     req: CalculateRequest,
 ) -> Result<CalculateResponse, AlchemyError> {
     if req.materials.is_empty() {
@@ -73,21 +74,21 @@ pub async fn calculate(
     }
 
     let mut material_cost = 0.0;
-    for (_, quantity, unit_cost) in resolve_material_costs(pool, client, &req.city, &req.materials).await? {
+    for (_, quantity, unit_cost) in resolve_material_costs(pool, client, server, &req.city, &req.materials).await? {
         material_cost += quantity * unit_cost as f64;
     }
 
     let output_price = marrow::get_price(
         pool,
         client,
-        marrow::AlbionServer::Americas,
+        server,
         &req.item_id,
         &req.city,
         1,
         300,
     )
         .await?
-        .sell_price
+        .sell_price_min
         .ok_or(AlchemyError::MissingPrice)?;
 
     let effective_material_cost = material_cost * (1.0 - (req.return_rate_pct / 100.0)).max(0.0);
@@ -109,6 +110,7 @@ pub async fn calculate(
 pub async fn save_scenario(
     pool: &SqlitePool,
     client: &reqwest::Client,
+    server: crate::settings::AlbionServer,
     req: ScenarioRequest,
 ) -> Result<ScenarioRow, AlchemyError> {
     let calc = req.calculation;
@@ -125,14 +127,14 @@ pub async fn save_scenario(
     let output_price = marrow::get_price(
         pool,
         client,
-        marrow::AlbionServer::Americas,
+        server,
         &calc.item_id,
         &calc.city,
         1,
         300,
     )
     .await?
-    .sell_price
+    .sell_price_min
     .ok_or(AlchemyError::MissingPrice)?;
 
     let effective_material_cost = material_cost * (1.0 - (calc.return_rate_pct / 100.0)).max(0.0);
@@ -199,6 +201,7 @@ pub async fn save_scenario(
 async fn resolve_material_costs(
     pool: &SqlitePool,
     client: &reqwest::Client,
+    server: crate::settings::AlbionServer,
     city: &str,
     materials: &[MaterialInput],
 ) -> Result<Vec<(String, f64, i64)>, AlchemyError> {
@@ -210,14 +213,14 @@ async fn resolve_material_costs(
             let price = marrow::get_price(
                 pool,
                 client,
-                marrow::AlbionServer::Americas,
+                server,
                 &material.item_id,
                 city,
                 1,
                 300,
             )
             .await?;
-            price.sell_price.ok_or(AlchemyError::MissingPrice)?
+            price.sell_price_min.ok_or(AlchemyError::MissingPrice)?
         };
         resolved.push((material.item_id.clone(), material.quantity, unit_cost));
     }

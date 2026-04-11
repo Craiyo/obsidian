@@ -13,7 +13,7 @@ async fn calculate(
     State(state): State<AppState>,
     Json(payload): Json<alchemy::CalculateRequest>,
 ) -> Result<Json<alchemy::CalculateResponse>, ApiError> {
-    let response = alchemy::calculate(&state.db, &state.http, payload).await?;
+    let response = alchemy::calculate(&state.db, &state.http, state.albion_server, payload).await?;
     Ok(Json(response))
 }
 
@@ -21,7 +21,7 @@ async fn save_scenario(
     State(state): State<AppState>,
     Json(payload): Json<alchemy::ScenarioRequest>,
 ) -> Result<Json<alchemy::ScenarioRow>, ApiError> {
-    let response = alchemy::save_scenario(&state.db, &state.http, payload).await?;
+    let response = alchemy::save_scenario(&state.db, &state.http, state.albion_server, payload).await?;
     Ok(Json(response))
 }
 
