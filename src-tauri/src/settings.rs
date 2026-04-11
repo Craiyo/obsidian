@@ -15,11 +15,34 @@ pub enum SettingsError {
     TomlEncode(#[from] toml::ser::Error),
 }
 
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "lowercase")]
+pub enum AlbionServer {
+    Americas,
+    Asia,
+    Europe,
+}
+
+impl AlbionServer {
+    pub fn base_url(&self) -> &'static str {
+        match self {
+            AlbionServer::Americas => "https://west.albion-online-data.com",
+            AlbionServer::Asia    => "https://east.albion-online-data.com",
+            AlbionServer::Europe  => "https://europe.albion-online-data.com",
+        }
+    }
+}
+
+impl Default for AlbionServer {
+    fn default() -> Self { AlbionServer::Americas }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Settings {
     pub language: String,
     pub theme: String,
     pub default_city: String,
+    pub albion_server: AlbionServer,
     pub return_rate_pct: f64,
     pub crafting_fee_pct: f64,
     pub seance_party_size: i64,
@@ -32,6 +55,7 @@ impl Default for Settings {
             language: "English".to_string(),
             theme: "Undead Ritual".to_string(),
             default_city: "Bridgewatch".to_string(),
+            albion_server: AlbionServer::default(),
             return_rate_pct: 15.0,
             crafting_fee_pct: 6.0,
             seance_party_size: 10,

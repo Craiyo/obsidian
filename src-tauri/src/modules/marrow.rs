@@ -5,22 +5,7 @@ use thiserror::Error;
 
 const GOLD_TTL_SECONDS: i64 = 60;
 
-#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
-pub enum AlbionServer {
-    Americas,
-    Asia,
-    Europe,
-}
-
-impl AlbionServer {
-    pub fn base_url(&self) -> &'static str {
-        match self {
-            AlbionServer::Americas => "https://west.albion-online-data.com",
-            AlbionServer::Asia => "https://east.albion-online-data.com",
-            AlbionServer::Europe => "https://europe.albion-online-data.com",
-        }
-    }
-}
+use crate::settings::AlbionServer;
 
 #[derive(Debug, Error)]
 pub enum MarrowError {
@@ -103,12 +88,6 @@ struct ApiPrice {
     buy_price_max_date: Option<String>,
 }
 
-#[derive(Debug, Deserialize)]
-#[serde(untagged)]
-enum ApiGoldPayload {
-    List(Vec<ApiGoldPoint>),
-    Object(ApiGoldPoint),
-}
 
 #[derive(Debug, Deserialize)]
 struct ApiHistoryItem {
@@ -121,7 +100,7 @@ struct ApiHistoryItem {
 #[derive(Debug, Deserialize)]
 struct ApiHistoryPoint {
     item_count: i64,
-    avg_price: i64,
+    silver_amount: i64,
     timestamp: String,
 }
 
@@ -351,6 +330,10 @@ pub async fn get_history_with_base_url(
     .await?
     {
         let data_json: String = row.get("data_json");
+        // Cache is keyed by time_scale, not days — a single cached blob serves
+        // multiple day-range requests. We filter here to the exact days requested.
+        // A 7-day and 30-day request for the same item+city+quality both hit the
+        // time_scale=24 cache; the filter trims to what was asked for.
         let cutoff = now - (days * 86400);
         let points: Vec<HistoryPoint> = serde_json::from_str::<Vec<HistoryPoint>>(&data_json)?
             .into_iter()
@@ -406,11 +389,12 @@ pub async fn get_history_with_base_url(
         .data
         .into_iter()
         .map(|p| {
-            let silver_amount = p.avg_price.saturating_mul(p.item_count);
+            // avg_price computed from totals; guard against div-by-zero
+            let avg_price = if p.item_count == 0 { 0 } else { p.silver_amount / p.item_count };
             HistoryPoint {
                 item_count: p.item_count,
-                silver_amount,
-                avg_price: p.avg_price,
+                silver_amount: p.silver_amount,
+                avg_price,
                 timestamp: p.timestamp,
             }
         })
@@ -558,17 +542,11 @@ pub async fn get_gold_with_base_url(
         eprintln!("[marrow] gold fetch status error: {e}");
         e
     })?;
-    let payload: ApiGoldPayload = response
-        .json()
-        .await
-        .map_err(|e| {
-            eprintln!("[marrow] gold fetch json error: {e}");
-            e
-        })?;
-    let p = match payload {
-        ApiGoldPayload::List(points) => points.into_iter().next().ok_or(MarrowError::NotFound)?,
-        ApiGoldPayload::Object(point) => point,
-    };
+    let points: Vec<ApiGoldPoint> = response.json().await.map_err(|e| {
+        eprintln!("[marrow] gold fetch json error: {e}");
+        e
+    })?;
+    let p = points.into_iter().next().ok_or(MarrowError::NotFound)?;
 
     sqlx::query(
         r#"
