@@ -100,7 +100,8 @@ struct ApiHistoryItem {
 #[derive(Debug, Deserialize)]
 struct ApiHistoryPoint {
     item_count: i64,
-    silver_amount: i64,
+    silver_amount: Option<i64>,
+    avg_price: Option<i64>,
     timestamp: String,
 }
 
@@ -372,13 +373,20 @@ pub async fn get_history_with_base_url(
         eprintln!("[marrow] history status error: {e}");
         e
     })?;
-    let histories: Vec<ApiHistoryItem> = response
-        .json()
-        .await
-        .map_err(|e| {
-            eprintln!("[marrow] history json error: {e}");
-            e
-        })?;
+
+    // Read body as text first so parse errors can log the raw payload for debugging.
+    let body_text = response.text().await.map_err(|e| {
+        eprintln!("[marrow] history read body error: {e}");
+        e
+    })?;
+
+    let histories: Vec<ApiHistoryItem> = match serde_json::from_str(&body_text) {
+        Ok(h) => h,
+        Err(e) => {
+            eprintln!("[marrow] history json parse error: {e}\nbody: {body_text}");
+            return Err(MarrowError::Json(e));
+        }
+    };
 
     let h = histories
         .into_iter()
@@ -389,11 +397,21 @@ pub async fn get_history_with_base_url(
         .data
         .into_iter()
         .map(|p| {
+            // API sometimes returns `silver_amount` (total silver) or `avg_price` per point.
+            // If avg_price is present but silver_amount is missing, reconstruct totals.
+            let silver_amount_val = if let Some(s) = p.silver_amount {
+                s
+            } else if let Some(avg) = p.avg_price {
+                // avg_price * item_count approximates total silver across the interval
+                (avg as i128 * p.item_count as i128) as i64
+            } else {
+                0
+            };
             // avg_price computed from totals; guard against div-by-zero
-            let avg_price = if p.item_count == 0 { 0 } else { p.silver_amount / p.item_count };
+            let avg_price = if p.item_count == 0 { 0 } else { silver_amount_val / p.item_count };
             HistoryPoint {
                 item_count: p.item_count,
-                silver_amount: p.silver_amount,
+                silver_amount: silver_amount_val,
                 avg_price,
                 timestamp: p.timestamp,
             }

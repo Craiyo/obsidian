@@ -287,9 +287,41 @@
         histChart = null;
       }
 
+      const badge = $("recommendation-badge");
+      badge.textContent = "";
+      badge.className = "";
+
       if (!values.length) {
         placeholder.textContent = "No history points";
         placeholder.style.display = "flex";
+        // Still request recommendation (fallback path) even when history is empty
+        try {
+          const recR = await fetch(`${BASE}/api/v1/marrow/recommend/${encodeURIComponent(item)}?city=${encodeURIComponent(city)}&days=${encodeURIComponent(days)}`);
+          if (recR.ok) {
+            const rec = await recR.json();
+            if (rec.item) {
+              const it = rec.item;
+              if (rec.recommended) {
+                badge.className = "metric-sub";
+                badge.textContent = `Recommend CRAFT — qty ${it.craft_qty} · est profit ${Number(it.expected_sales_profit).toFixed(0)} silver`;
+              } else {
+                badge.className = "muted";
+                badge.textContent = `Do NOT craft: ${rec.reason || 'no reason provided'}`;
+              }
+            } else {
+              badge.className = "muted";
+              badge.textContent = `Do NOT craft: ${rec.reason || 'no recipe found'}`;
+            }
+          } else {
+            badge.className = "muted";
+            badge.textContent = `Recommendation unavailable — ${recR.status}`;
+          }
+        } catch (e) {
+          // ignore recommendation failures
+        }
+
+        btn.disabled = false;
+        btn.textContent = old;
         return;
       }
 
@@ -335,11 +367,63 @@
           },
         },
       });
+
+      // Request per-item recommendation and display a short badge under the chart
+      try {
+        const recR = await fetch(`${BASE}/api/v1/marrow/recommend/${encodeURIComponent(item)}?city=${encodeURIComponent(city)}&days=${encodeURIComponent(days)}`);
+        const badge = $("recommendation-badge");
+        if (!recR.ok) {
+          badge.className = "muted";
+          badge.textContent = `Recommendation unavailable — ${recR.status}`;
+        } else {
+          const rec = await recR.json();
+          if (rec.item) {
+            const it = rec.item;
+            if (rec.recommended) {
+              badge.className = "metric-sub";
+              badge.textContent = `Recommend CRAFT — qty ${it.craft_qty} · est profit ${Number(it.expected_sales_profit).toFixed(0)} silver`;
+            } else {
+              badge.className = "muted";
+              badge.textContent = `Do NOT craft: ${rec.reason || 'no reason provided'}`;
+            }
+          } else {
+            badge.className = "muted";
+            badge.textContent = `Do NOT craft: ${rec.reason || 'no recipe found'}`;
+          }
+        }
+      } catch (e) {
+        // ignore recommendation failures
+      }
+
     } catch (err) {
       setError("hist-error", err?.message || "Network error");
     } finally {
       btn.disabled = false;
       btn.textContent = old;
+    }
+  }
+
+  async function fetchRecommendations() {
+    const city = $("recommend-city").value;
+    const limit = $("recommend-limit").value;
+    const list = $("recommend-list");
+    list.className = "muted";
+    list.textContent = "Loading...";
+    try {
+      const r = await fetch(`${BASE}/api/v1/marrow/recommend?city=${encodeURIComponent(city)}&limit=${encodeURIComponent(limit)}`);
+      if (!r.ok) throw new Error();
+      const items = await r.json();
+      if (!items.length) {
+        list.className = "muted";
+        list.textContent = "No recommendations";
+        return;
+      }
+      list.className = "";
+      list.innerHTML = `<table style="width:100%;border-collapse:collapse"><thead><tr><th>Item</th><th>Qty</th><th>Unit Profit</th><th>Expected Profit</th><th>Action</th></tr></thead><tbody>${items.map(it => `<tr><td>${it.display_name} (${it.uniquename})</td><td>${it.craft_qty}</td><td>${Number(it.unit_profit).toFixed(0)}</td><td>${Number(it.expected_sales_profit).toFixed(0)}</td><td><button class="btn-primary rec-craft" data-id="${it.uniquename}" data-qty="${it.craft_qty}">Craft</button></td></tr>`).join("")}</tbody></table>`;
+      list.querySelectorAll("button.rec-craft").forEach(btn=>{ btn.addEventListener("click",(e)=>{ const id=btn.dataset.id; const qty=btn.dataset.qty; fillInputs(id); const cityEl = $("price-city"); if (cityEl) cityEl.value = $("recommend-city").value; })});
+    } catch {
+      list.className = "error-msg";
+      list.textContent = "Failed to load recommendations";
     }
   }
 
@@ -472,6 +556,7 @@
 
     loadGold();
     loadFavourites();
+    $("recommend-btn")?.addEventListener("click", fetchRecommendations);
     setInterval(loadGold, 60_000);
   });
 })();

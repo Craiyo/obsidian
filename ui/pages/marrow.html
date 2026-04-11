@@ -132,6 +132,22 @@
             <div id="hist-placeholder">Fetch history to render chart</div>
             <canvas id="hist-chart" height="160"></canvas>
           </div>
+          <div id="recommendation-badge" style="margin-top:8px"></div>
+        </div>
+      </section>
+
+      <section id="section-recommend" class="section-card">
+        <div class="section-head"><h2>Recommendations</h2></div>
+        <div class="section-body">
+          <div class="row">
+            <select id="recommend-city" class="select">
+              <option>Bridgewatch</option><option>Caerleon</option><option>Fort Sterling</option>
+              <option>Lymhurst</option><option>Martlock</option><option>Thetford</option>
+            </select>
+            <input id="recommend-limit" class="input w60" type="number" min="1" max="100" value="20" />
+            <button id="recommend-btn" class="btn-primary">Recommend Crafts</button>
+          </div>
+          <div id="recommend-list" class="muted">No recommendations yet</div>
         </div>
       </section>
 

@@ -4,6 +4,7 @@ pub mod effigy;
 pub mod hemorrhage;
 pub mod hex;
 pub mod marrow;
+pub mod marrow_recommend;
 pub mod seance;
 pub mod specter;
 pub mod wail;
