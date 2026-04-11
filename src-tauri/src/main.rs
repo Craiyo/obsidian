@@ -1,7 +1,11 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod api;
+mod audio;
+mod capture;
 mod db;
+mod macro_engine;
+mod memory;
 mod modules;
 mod settings;
 mod ws;
@@ -16,7 +20,11 @@ fn main() {
             let settings_path = settings::settings_path(&app_handle)
                 .map_err(|e| Box::<dyn std::error::Error>::from(e))?;
 
-            let state = api::AppState::new(pool.clone(), settings_path);
+            let settings = tauri::async_runtime::block_on(
+                settings::load(&settings_path)
+            ).unwrap_or_default();
+
+            let state = api::AppState::new(pool.clone(), settings_path, settings.albion_server);
 
             // Clone for background seeding
             let seed_pool = pool.clone();
