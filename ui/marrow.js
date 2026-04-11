@@ -350,10 +350,26 @@
     if (!id) return;
 
     try {
+      // If the user typed a display name, try to resolve it to a uniquename via search.
+      let payloadId = id;
+      try {
+        const sr = await fetch(`${BASE}/api/v1/marrow/search?q=${encodeURIComponent(id)}`);
+        if (sr.ok) {
+          const items = await sr.json();
+          if (Array.isArray(items) && items.length > 0) {
+            // Prefer exact match on display_name or uniquename, otherwise take first result.
+            const exact = items.find(it => (it.display_name || '').toLowerCase() === id.toLowerCase() || it.uniquename.toLowerCase() === id.toLowerCase());
+            payloadId = exact ? exact.uniquename : items[0].uniquename;
+          }
+        }
+      } catch (e) {
+        // ignore search failures and fall back to raw input
+      }
+
       const r = await fetch(`${BASE}/api/v1/marrow/favourites`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ uniquename: id }),
+        body: JSON.stringify({ uniquename: payloadId }),
       });
       if (!r.ok) throw new Error("Failed to add favourite");
       input.value = "";
