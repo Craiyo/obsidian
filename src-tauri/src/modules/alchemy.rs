@@ -118,7 +118,7 @@ pub async fn save_scenario(
         return Err(AlchemyError::MissingMaterials);
     }
 
-    let resolved_materials = resolve_material_costs(pool, client, &calc.city, &calc.materials).await?;
+    let resolved_materials = resolve_material_costs(pool, client, server, &calc.city, &calc.materials).await?;
     let mut material_cost = 0.0;
     for (_, quantity, unit_cost) in &resolved_materials {
         material_cost += *quantity * *unit_cost as f64;
