@@ -22,12 +22,15 @@ fn main() {
             let seed_pool = pool.clone();
             let seed_handle = app_handle.clone();
 
+            // Seed in background — does not block API startup
             tauri::async_runtime::spawn(async move {
-                // Seed items in background so window opens immediately
                 if let Err(err) = db::seed_items_if_empty(&seed_pool, &seed_handle).await {
                     eprintln!("[db] item seed failed: {err}");
                 }
+            });
 
+            // API server starts immediately
+            tauri::async_runtime::spawn(async move {
                 if let Err(err) = api::serve(state).await {
                     eprintln!("api server stopped: {err}");
                 }

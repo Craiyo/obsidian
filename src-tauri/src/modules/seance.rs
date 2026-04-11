@@ -229,6 +229,9 @@ pub async fn record_withdrawal(pool: &SqlitePool, req: WithdrawalRequest) -> Res
     }
 
     let now = Utc::now().timestamp();
+
+    let mut tx = pool.begin().await?;
+
     sqlx::query(
         "INSERT INTO seance_withdrawals (player_name, amount, reason, notes, created_at) VALUES (?, ?, ?, ?, ?)"
     )
@@ -237,7 +240,7 @@ pub async fn record_withdrawal(pool: &SqlitePool, req: WithdrawalRequest) -> Res
     .bind(&req.reason)
     .bind(req.notes)
     .bind(now)
-    .execute(pool)
+    .execute(&mut *tx)
     .await?;
 
     sqlx::query(
@@ -246,8 +249,10 @@ pub async fn record_withdrawal(pool: &SqlitePool, req: WithdrawalRequest) -> Res
     .bind(&req.player_name)
     .bind(req.amount)
     .bind(now)
-    .execute(pool)
+    .execute(&mut *tx)
     .await?;
+
+    tx.commit().await?;
 
     wallet(pool, &req.player_name).await
 }

@@ -11,20 +11,35 @@
     el.textContent = msg || "";
   }
 
-  function fillInputs(uniquename) {
+  async function fillInputs(uniquename) {
     // Shared behavior: clicking a favourite fills both price and history item IDs.
-    setComboValue("price-item", uniquename);
-    setComboValue("hist-item", uniquename);
+    // Try to resolve display name via search endpoint; fall back to uniquename.
+    let displayName = uniquename;
+    try {
+      const r = await fetch(`${BASE}/api/v1/marrow/search?q=${encodeURIComponent(uniquename)}`);
+      if (r.ok) {
+        const items = await r.json();
+        if (Array.isArray(items)) {
+          const found = items.find((it) => it.uniquename === uniquename);
+          if (found) displayName = found.display_name || uniquename;
+        }
+      }
+    } catch (e) {
+      // ignore
+    }
+
+    setComboValue("price-item", uniquename, displayName);
+    setComboValue("hist-item", uniquename, displayName);
   }
 
   function setComboValue(inputId, uniquename, displayName) {
     const state = comboState[inputId];
     if (!state) return;
     state.uniquename = uniquename || "";
-    state.input.value = uniquename || "";
-    state.label.textContent = uniquename
-      ? `${displayName || uniquename} · ${uniquename}`
-      : "";
+    // Show human-friendly display name in the input when present, otherwise show the uniquename
+    state.input.value = (displayName && displayName.length) ? displayName : (uniquename || "");
+    // Show the uniquename as a muted label so the user can see it
+    state.label.textContent = uniquename ? `${uniquename}` : "";
   }
 
   function closeMenu(inputId) {
@@ -86,22 +101,20 @@
       activeIndex: -1,
       timer: null,
       reqId: 0,
+      getValue() { return this.uniquename; }
     };
 
     input.addEventListener("input", () => {
       const state = comboState[inputId];
       const q = input.value.trim();
+      // Any manual input clears the previously selected uniquename
+      state.uniquename = "";
       if (!q) {
         clearTimeout(state.timer);
-        state.uniquename = "";
         state.label.textContent = "";
         state.results = [];
         closeMenu(inputId);
         return;
-      }
-      if (state.uniquename && q !== state.uniquename) {
-        state.uniquename = "";
-        state.label.textContent = "";
       }
       clearTimeout(state.timer);
       state.timer = setTimeout(async () => {
