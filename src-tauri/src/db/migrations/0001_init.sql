@@ -55,30 +55,32 @@ CREATE TABLE IF NOT EXISTS seance_regear_transactions (
 
 -- Marrow
 CREATE TABLE IF NOT EXISTS marrow_prices (
-  item_id TEXT NOT NULL,
+  uniquename TEXT NOT NULL,
   city TEXT NOT NULL,
   quality INTEGER NOT NULL DEFAULT 1,
-  buy_price INTEGER,
-  sell_price INTEGER,
-  buy_min INTEGER,
-  sell_min INTEGER,
-  updated_at INTEGER NOT NULL,
+  sell_price_min INTEGER,
+  sell_price_max INTEGER,
+  buy_price_min INTEGER,
+  buy_price_max INTEGER,
+  sell_price_min_date TEXT,
+  buy_price_max_date TEXT,
+  fetched_at INTEGER NOT NULL,
   ttl_expires_at INTEGER NOT NULL,
-  PRIMARY KEY (item_id, city, quality)
+  PRIMARY KEY (uniquename, city, quality)
 );
 
 CREATE TABLE IF NOT EXISTS marrow_history (
-  item_id TEXT NOT NULL,
+  uniquename TEXT NOT NULL,
   city TEXT NOT NULL,
   quality INTEGER NOT NULL DEFAULT 1,
-  timestamp INTEGER NOT NULL,
-  avg_price INTEGER NOT NULL,
-  volume INTEGER,
-  PRIMARY KEY (item_id, city, quality, timestamp)
+  time_scale INTEGER NOT NULL,
+  data_json TEXT NOT NULL,
+  fetched_at INTEGER NOT NULL,
+  PRIMARY KEY (uniquename, city, quality, time_scale)
 );
 
 CREATE TABLE IF NOT EXISTS marrow_favourites (
-  item_id TEXT PRIMARY KEY,
+  uniquename TEXT PRIMARY KEY,
   added_at INTEGER NOT NULL
 );
 
