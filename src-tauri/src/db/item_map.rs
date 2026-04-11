@@ -1,6 +1,6 @@
 use serde::Serialize;
 use serde_json::Value;
-use std::{fs, path::Path};
+use std::{collections::HashMap, fs, path::Path};
 use sqlx::SqlitePool;
 
 #[derive(Debug, Clone, Serialize)]
@@ -42,8 +42,15 @@ struct CraftingData {
     craft_resources: Option<String>,
 }
 
+/// Load display names JSON ({ "UNIQUENAME": "Display Name" })
+pub fn load_display_names(path: &Path) -> Result<HashMap<String, String>, Box<dyn std::error::Error>> {
+    let content = fs::read_to_string(path)?;
+    let map: HashMap<String, String> = serde_json::from_str(&content)?;
+    Ok(map)
+}
+
 /// Parse the items.json file and return rows for insertion.
-pub fn parse_items_json(path: &Path) -> Result<Vec<ItemRow>, Box<dyn std::error::Error>> {
+pub fn parse_items_json(path: &Path, display_names: &HashMap<String, String>) -> Result<Vec<ItemRow>, Box<dyn std::error::Error>> {
     let content = fs::read_to_string(path)?;
     let root: Value = serde_json::from_str(&content)?;
 
@@ -74,9 +81,14 @@ pub fn parse_items_json(path: &Path) -> Result<Vec<ItemRow>, Box<dyn std::error:
             let show_in_marketplace = get_bool(item_obj, "@showinmarketplace").unwrap_or(false);
             let craft = parse_crafting(item_obj.get("craftingrequirements"));
 
+            let display_name = display_names
+                .get(base_uniquename)
+                .cloned()
+                .unwrap_or_else(|| derive_display_name(base_uniquename));
+
             let base = ItemRow {
                 uniquename: base_uniquename.to_string(),
-                display_name: derive_display_name(base_uniquename),
+                display_name,
                 item_type: item_type.to_string(),
                 tier,
                 enchantment_level: 0,
@@ -103,7 +115,10 @@ pub fn parse_items_json(path: &Path) -> Result<Vec<ItemRow>, Box<dyn std::error:
                     let mut row = base.clone();
                     row.enchantment_level = ench.enchantment_level;
                     row.uniquename = format!("{}@{}", base.uniquename, ench.enchantment_level);
-                    row.display_name = derive_display_name(&row.uniquename);
+                    row.display_name = display_names
+                        .get(&row.uniquename)
+                        .cloned()
+                        .unwrap_or_else(|| derive_display_name(&row.uniquename));
 
                     if ench.craft.craftable {
                         row.craftable = true;

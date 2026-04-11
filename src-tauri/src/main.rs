@@ -13,15 +13,21 @@ fn main() {
             let pool = tauri::async_runtime::block_on(db::init_pool(&app_handle))
                 .map_err(|e| Box::<dyn std::error::Error>::from(e))?;
 
-            // Seed items table from assets/items.json if it's empty
-            tauri::async_runtime::block_on(db::seed_items_if_empty(&pool, &app_handle))
-                .map_err(|e| Box::<dyn std::error::Error>::from(e))?;
-
             let settings_path = settings::settings_path(&app_handle)
                 .map_err(|e| Box::<dyn std::error::Error>::from(e))?;
 
-            let state = api::AppState::new(pool, settings_path);
+            let state = api::AppState::new(pool.clone(), settings_path);
+
+            // Clone for background seeding
+            let seed_pool = pool.clone();
+            let seed_handle = app_handle.clone();
+
             tauri::async_runtime::spawn(async move {
+                // Seed items in background so window opens immediately
+                if let Err(err) = db::seed_items_if_empty(&seed_pool, &seed_handle).await {
+                    eprintln!("[db] item seed failed: {err}");
+                }
+
                 if let Err(err) = api::serve(state).await {
                     eprintln!("api server stopped: {err}");
                 }

@@ -151,6 +151,8 @@ pub async fn save_scenario(
     };
     let now = chrono::Utc::now().timestamp();
 
+    let mut tx = pool.begin().await?;
+
     let result = sqlx::query(
         "INSERT INTO alchemy_scenarios (name, item_id, city, return_rate, crafting_fee, bonus_pct, profit, created_at)         VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
     )
@@ -162,7 +164,7 @@ pub async fn save_scenario(
     .bind(calc.bonus_pct)
     .bind(calculation.profit.round() as i64)
     .bind(now)
-    .execute(pool)
+    .execute(&mut *tx)
     .await?;
 
     let scenario_id = result.last_insert_rowid();
@@ -175,9 +177,11 @@ pub async fn save_scenario(
         .bind(material_id)
         .bind(quantity)
         .bind(unit_cost)
-        .execute(pool)
+        .execute(&mut *tx)
         .await?;
     }
+
+    tx.commit().await?;
 
     Ok(ScenarioRow {
         id: scenario_id,

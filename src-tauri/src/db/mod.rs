@@ -49,6 +49,14 @@ async fn migrate(pool: &SqlitePool) -> Result<(), DbError> {
     Ok(())
 }
 
+fn candidates_for(filename: &str) -> Option<std::path::PathBuf> {
+    let candidates = [
+        std::path::PathBuf::from(filename),
+        std::path::PathBuf::from(format!("../{}", filename)),
+    ];
+    candidates.into_iter().find(|p| p.exists())
+}
+
 pub async fn seed_items_if_empty(pool: &SqlitePool, _app: &tauri::AppHandle) -> Result<(), DbError> {
     let count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM items")
         .fetch_one(pool)
@@ -58,21 +66,20 @@ pub async fn seed_items_if_empty(pool: &SqlitePool, _app: &tauri::AppHandle) -> 
         return Ok(());
     }
 
-    // Try path relative to the binary first, then fall back to dev path
-    let candidates = [
-        std::path::PathBuf::from("assets/items.json"),
-        std::path::PathBuf::from("../assets/items.json"),
-    ];
+    let items_path = candidates_for("assets/items.json").ok_or_else(|| DbError::Io(std::io::Error::new(
+        std::io::ErrorKind::NotFound,
+        "assets/items.json not found",
+    )))?;
 
-    let items_path = candidates
-        .iter()
-        .find(|p| p.exists())
-        .ok_or_else(|| DbError::Io(std::io::Error::new(
-            std::io::ErrorKind::NotFound,
-            "assets/items.json not found",
-        )))?;
+    let display_names_path = candidates_for("assets/item_display_names.json").ok_or_else(|| DbError::Io(std::io::Error::new(
+        std::io::ErrorKind::NotFound,
+        "assets/item_display_names.json not found",
+    )))?;
 
-    let rows = item_map::parse_items_json(items_path)
+    let display_names = item_map::load_display_names(&display_names_path)
+        .map_err(|e| DbError::Io(std::io::Error::new(std::io::ErrorKind::Other, e.to_string())))?;
+
+    let rows = item_map::parse_items_json(&items_path, &display_names)
         .map_err(|e| DbError::Io(std::io::Error::new(std::io::ErrorKind::Other, e.to_string())))?;
 
     item_map::insert_items(pool, rows).await?;

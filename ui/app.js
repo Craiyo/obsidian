@@ -181,58 +181,6 @@ async function initSeance() {
   });
 }
 
-async function initMarrow() {
-  $("marrow-fetch").addEventListener("click", async () => {
-    const itemId = $("marrow-item-id").value;
-    const city = $("marrow-city").value;
-    const quality = $("marrow-quality").value;
-
-    const query = new URLSearchParams({ city, quality });
-    try {
-      const result = await apiRequest(`/api/v1/marrow/item/${encodeURIComponent(itemId)}?${query}`);
-      setOutput("marrow-price-output", result);
-    } catch (err) {
-      setOutput("marrow-price-output", { error: err.message });
-    }
-  });
-
-  $("marrow-history").addEventListener("click", async () => {
-    const itemId = $("marrow-history-item").value;
-    const city = $("marrow-history-city").value;
-    const days = $("marrow-history-days").value;
-
-    const query = new URLSearchParams({ city, days });
-    try {
-      const result = await apiRequest(`/api/v1/marrow/history/${encodeURIComponent(itemId)}?${query}`);
-      setOutput("marrow-history-output", result);
-    } catch (err) {
-      setOutput("marrow-history-output", { error: err.message });
-    }
-  });
-
-  $("marrow-fav-add").addEventListener("click", async () => {
-    const itemId = $("marrow-fav-item").value;
-    try {
-      const result = await apiRequest("/api/v1/marrow/favourites", {
-        method: "POST",
-        body: JSON.stringify({ item_id: itemId }),
-      });
-      setOutput("marrow-fav-output", result);
-    } catch (err) {
-      setOutput("marrow-fav-output", { error: err.message });
-    }
-  });
-
-  $("marrow-fav-refresh").addEventListener("click", async () => {
-    try {
-      const result = await apiRequest("/api/v1/marrow/favourites");
-      setOutput("marrow-fav-output", result);
-    } catch (err) {
-      setOutput("marrow-fav-output", { error: err.message });
-    }
-  });
-}
-
 async function initAlchemy() {
   let lastCalculation = null;
 
@@ -296,6 +244,6 @@ window.addEventListener("DOMContentLoaded", () => {
   const page = document.body.dataset.page;
   if (page === "settings") initSettings();
   if (page === "seance") initSeance();
-  if (page === "marrow") initMarrow();
+
   if (page === "alchemy") initAlchemy();
 });

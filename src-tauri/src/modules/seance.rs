@@ -157,6 +157,8 @@ pub async fn apply_split(pool: &SqlitePool, session_id: i64, req: SplitRequest) 
     let mut remaining = total_loot_value;
     let mut shares = Vec::with_capacity(req.players.len());
 
+    let mut tx = pool.begin().await?;
+
     for (idx, player) in req.players.iter().enumerate() {
         let weight = weights[idx];
         let share_value = if idx == req.players.len() - 1 {
@@ -174,7 +176,7 @@ pub async fn apply_split(pool: &SqlitePool, session_id: i64, req: SplitRequest) 
         .bind(&player.player_name)
         .bind(weight)
         .bind(share_value)
-        .execute(pool)
+        .execute(&mut *tx)
         .await?;
 
         sqlx::query(
@@ -183,7 +185,7 @@ pub async fn apply_split(pool: &SqlitePool, session_id: i64, req: SplitRequest) 
         .bind(&player.player_name)
         .bind(share_value)
         .bind(Utc::now().timestamp())
-        .execute(pool)
+        .execute(&mut *tx)
         .await?;
 
         shares.push(SplitShare {
@@ -192,6 +194,8 @@ pub async fn apply_split(pool: &SqlitePool, session_id: i64, req: SplitRequest) 
             share_value,
         });
     }
+
+    tx.commit().await?;
 
     Ok(SplitResponse {
         session_id,
