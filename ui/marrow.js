@@ -353,7 +353,7 @@
       const r = await fetch(`${BASE}/api/v1/marrow/favourites`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ item_id: id }),
+        body: JSON.stringify({ uniquename: id }),
       });
       if (!r.ok) throw new Error("Failed to add favourite");
       input.value = "";

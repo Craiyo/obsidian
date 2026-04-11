@@ -24,7 +24,7 @@ pub struct SearchQuery {
 
 #[derive(Debug, Deserialize)]
 pub struct FavouriteRequest {
-    pub item_id: String,
+    pub uniquename: String,
 }
 
 pub fn router() -> Router<AppState> {
@@ -46,7 +46,7 @@ async fn price(
     let response = marrow::get_price(
         &state.db,
         &state.http,
-        marrow::AlbionServer::Americas,
+        state.albion_server,
         &id,
         &query.city,
         quality,
@@ -66,7 +66,7 @@ async fn history(
     let response = marrow::get_history(
         &state.db,
         &state.http,
-        marrow::AlbionServer::Americas,
+        state.albion_server,
         &id,
         &query.city,
         quality,
