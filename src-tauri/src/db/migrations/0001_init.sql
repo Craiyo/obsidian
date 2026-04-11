@@ -219,10 +219,10 @@ CREATE INDEX IF NOT EXISTS idx_seance_session_shares_session
   ON seance_session_shares(session_id);
 
 CREATE INDEX IF NOT EXISTS idx_marrow_prices_item
-  ON marrow_prices(item_id);
+  ON marrow_prices(uniquename);
 
 CREATE INDEX IF NOT EXISTS idx_marrow_history_item
-  ON marrow_history(item_id);
+  ON marrow_history(uniquename);
 
 CREATE INDEX IF NOT EXISTS idx_alchemy_scenarios_item
   ON alchemy_scenarios(item_id);
