@@ -32,12 +32,30 @@
     setComboValue("hist-item", uniquename, displayName);
   }
 
+  function titleCaseToken(token) {
+    if (!token) return "";
+    const lower = token.toLowerCase();
+    return lower.charAt(0).toUpperCase() + lower.slice(1);
+  }
+
+  function deriveDisplayNameFromUniquename(uniquename) {
+    if (!uniquename) return "";
+    // Remove tier prefix like T4_ or T5_2_
+    let out = uniquename;
+    if (out.startsWith("T")) {
+      const m = out.match(/^T\d+(_\d+)?_/);
+      if (m) out = out.slice(m[0].length);
+    }
+    out = out.replace(/@/g, " ");
+    return out.split("_").filter(Boolean).map(titleCaseToken).join(" ");
+  }
+
   function setComboValue(inputId, uniquename, displayName) {
     const state = comboState[inputId];
     if (!state) return;
     state.uniquename = uniquename || "";
-    // Show human-friendly display name in the input when present, otherwise show the uniquename
-    state.input.value = (displayName && displayName.length) ? displayName : (uniquename || "");
+    const shown = (displayName && displayName.length) ? displayName : deriveDisplayNameFromUniquename(uniquename || "");
+    state.input.value = shown;
     // Show the uniquename as a muted label so the user can see it
     state.label.textContent = uniquename ? `${uniquename}` : "";
   }
@@ -61,9 +79,10 @@
     menu.innerHTML = results
       .map((it, idx) => {
         const sub = `${it.shopcategory || ""} > ${it.shopsubcategory1 || ""}`.replace(/^ > | > $/g, "");
-        return `<div class="search-row${idx === state.activeIndex ? " active" : ""}" data-idx="${idx}">
+        const shownName = it.display_name && it.display_name.length ? it.display_name : deriveDisplayNameFromUniquename(it.uniquename);
+          return `<div class="search-row${idx === state.activeIndex ? " active" : ""}" data-idx="${idx}">
           <span class="tier-badge">T${it.tier}</span>
-          <span class="item-name">${it.display_name}</span>
+          <span class="item-name">${shownName}</span>
           <span class="item-cat">${sub}</span>
         </div>`;
       })
