@@ -194,13 +194,20 @@ pub async fn recommend_item(
     // 4) City comparison — fetch all cities concurrently
     // Note: these futures borrow pool & client; join_all is fine here because it polls them within the same task.
     // If refactoring to tokio::spawn, clone pool/client per future.
-    let city_futures = ALL_CITIES.iter().map(|&c| marrow::get_price(pool, client, server, item_id, c, quality, 300));
-    let city_results = join_all(city_futures).await;
+    let city_futures: Vec<_> = ALL_CITIES
+        .iter()
+        .map(|&c| marrow::get_price(pool, client, server, item_id, c, quality, 300))
+        .collect();
 
-    let mut city_prices: Vec<CityPriceSummary> = ALL_CITIES.iter().cloned().zip(city_results.into_iter())
+    let city_results: Vec<Result<marrow::PriceResponse, marrow::MarrowError>> = join_all(city_futures).await;
+
+    let mut city_prices: Vec<CityPriceSummary> = ALL_CITIES
+        .iter()
+        .map(|s| s.to_string())
+        .zip(city_results.into_iter())
         .map(|(c, res)| match res {
-            Ok(p) => CityPriceSummary { city: c.to_string(), sell_price_min: p.sell_price_min, buy_price_max: p.buy_price_max },
-            Err(_) => CityPriceSummary { city: c.to_string(), sell_price_min: None, buy_price_max: None },
+            Ok(p) => CityPriceSummary { city: c, sell_price_min: p.sell_price_min, buy_price_max: p.buy_price_max },
+            Err(_) => CityPriceSummary { city: c, sell_price_min: None, buy_price_max: None },
         })
         .collect();
 
@@ -225,8 +232,8 @@ pub async fn recommend_item(
         Some(round2(mean))
     };
 
-    // Use copied() for Copy types
-    let min_daily_volume = history_points.iter().map(|p| p.item_count).min().copied();
+    // min_daily_volume: keep worst day for reference. Use .min() then .copied() via into_iter()
+    let min_daily_volume = history_points.iter().map(|p| p.item_count).min().into_iter().copied().next();
 
     let suggested_qty = avg_daily_volume.map(|v| ((v * 0.2).round() as i64).max(1)).unwrap_or(1);
 
