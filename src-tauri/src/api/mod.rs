@@ -28,10 +28,20 @@ pub struct AppState {
     pub settings_path: PathBuf,
     pub http: reqwest::Client,
     pub albion_server: crate::settings::AlbionServer,
+
+    // Cached crafting parameters for handlers
+    pub return_rate_pct: f64,
+    pub crafting_fee_pct: f64,
 }
 
 impl AppState {
-    pub fn new(db: SqlitePool, settings_path: PathBuf, albion_server: crate::settings::AlbionServer) -> Self {
+    pub fn new(
+        db: SqlitePool,
+        settings_path: PathBuf,
+        albion_server: crate::settings::AlbionServer,
+        return_rate_pct: f64,
+        crafting_fee_pct: f64,
+    ) -> Self {
         let http = reqwest::Client::builder()
             .timeout(std::time::Duration::from_secs(10))
             .build()
@@ -41,6 +51,8 @@ impl AppState {
             settings_path,
             http,
             albion_server,
+            return_rate_pct,
+            crafting_fee_pct,
         }
     }
 }

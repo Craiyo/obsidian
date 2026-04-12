@@ -24,7 +24,13 @@ fn main() {
                 settings::load(&settings_path)
             ).unwrap_or_default();
 
-            let state = api::AppState::new(pool.clone(), settings_path, settings.albion_server);
+            let state = api::AppState::new(
+                pool.clone(),
+                settings_path,
+                settings.albion_server,
+                settings.return_rate_pct,
+                settings.crafting_fee_pct,
+            );
 
             // Clone for background seeding
             let seed_pool = pool.clone();
