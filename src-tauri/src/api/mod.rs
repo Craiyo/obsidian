@@ -10,6 +10,7 @@ use sqlx::SqlitePool;
 use std::{net::SocketAddr, path::PathBuf};
 use tower_http::cors::CorsLayer;
 
+pub mod alchemy;
 pub mod marrow;
 pub mod seance;
 pub mod settings;
@@ -107,6 +108,7 @@ pub async fn serve(state: AppState) -> Result<(), std::io::Error> {
         .route("/api/v1/health", get(health))
         .nest("/api/v1/settings", settings::router())
         .nest("/api/v1/marrow", marrow::router())
+        .nest("/api/v1/alchemy", alchemy::router())
         .nest("/api/v1/seance", seance::router())
         .nest("/api/v1/chronicle",   chronicle::router())
         .nest("/api/v1/effigy",      effigy::router())

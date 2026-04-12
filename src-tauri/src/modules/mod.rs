@@ -1,3 +1,4 @@
+pub mod alchemy;
 pub mod chronicle;
 pub mod effigy;
 pub mod hemorrhage;

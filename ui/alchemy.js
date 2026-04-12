@@ -4,35 +4,52 @@
 
   const $ = (id) => document.getElementById(id);
 
-  function setError(id, msg) {
-    const el = $(id);
-    if (!el) return;
-    el.textContent = msg || "";
-  }
+  function getBestCity(cat, sub) {
+    cat = (cat || "").toLowerCase();
+    sub = (sub || "").toLowerCase();
 
-  function titleCaseToken(token) {
-    if (!token) return "";
-    const lower = token.toLowerCase();
-    return lower.charAt(0).toUpperCase() + lower.slice(1);
-  }
-
-  function deriveDisplayName(uniquename) {
-    if (!uniquename) return "";
-    let out = uniquename;
-    if (out.startsWith("T")) {
-      const m = out.match(/^T\d+(_\d+)?_/);
-      if (m) out = out.slice(m[0].length);
+    if (cat === "consumables") {
+      if (sub.includes("potion")) return "Brecilien";
+      if (sub.includes("food")) return "Caerleon";
+      return "Caerleon";
     }
-    out = out.replace(/@/g, " ");
-    return out.split("_").filter(Boolean).map(titleCaseToken).join(" ");
+    if (cat === "weapons") {
+      if (["sword", "bow", "arcanestaff"].some(s => sub.includes(s))) return "Lymhurst";
+      if (["axe"].some(s => sub.includes(s))) return "Martlock";
+      if (["crossbow", "dagger", "cursestaff"].some(s => sub.includes(s))) return "Bridgewatch";
+      if (["mace", "naturestaff", "firestaff"].some(s => sub.includes(s))) return "Thetford";
+      if (["hammer", "spear", "holystaff", "froststaff"].some(s => sub.includes(s))) return "FortSterling";
+      return "Caerleon";
+    }
+    if (cat === "offhands") {
+      if (sub.includes("shield")) return "Martlock";
+      return "Martlock"; // Most offhands like torches go to Martlock
+    }
+    if (cat === "armors") {
+      if (sub.includes("plate_armor")) return "FortSterling";
+      if (sub.includes("leather_armor")) return "Thetford";
+      if (sub.includes("cloth_armor")) return "Martlock";
+    }
+    if (cat === "head") {
+      if (sub.includes("leather_helmet")) return "Lymhurst";
+      if (sub.includes("plate_helmet")) return "Bridgewatch";
+      if (sub.includes("cloth_helmet")) return "Thetford";
+    }
+    if (cat === "shoes") {
+      if (sub.includes("leather_shoes")) return "Lymhurst";
+      if (sub.includes("plate_shoes")) return "Martlock";
+      if (sub.includes("cloth_shoes")) return "FortSterling";
+    }
+    if (cat === "tool") return "Caerleon";
+    
+    return "Caerleon";
   }
 
   function setComboValue(inputId, uniquename, displayName) {
     const state = comboState[inputId];
     if (!state) return;
     state.uniquename = uniquename || "";
-    const shown = (displayName && displayName.length) ? displayName : deriveDisplayName(uniquename || "");
-    state.input.value = shown;
+    state.input.value = displayName || uniquename || "";
     state.label.textContent = uniquename ? `${uniquename}` : "";
   }
 
@@ -41,28 +58,23 @@
     if (!state) return;
     const { results, menu } = state;
     if (!results.length) {
-      menu.innerHTML = `<div class="combo-empty">No items found</div>`;
-      menu.style.display = "block";
+      menu.style.display = "none";
       return;
     }
     menu.innerHTML = results
-      .map((it, idx) => {
-        const sub = `${it.shopcategory || ""} > ${it.shopsubcategory1 || ""}`.replace(/^ > | > $/g, "");
-        const shownName = it.display_name && it.display_name.length ? it.display_name : deriveDisplayName(it.uniquename);
-        return `<div class="search-row${idx === state.activeIndex ? " active" : ""}" data-idx="${idx}">
+      .map((it, idx) => `
+        <div class="search-row${idx === state.activeIndex ? " active" : ""}" data-idx="${idx}">
           <span class="tier-badge">T${it.tier}</span>
-          <span class="item-name">${shownName}</span>
-        </div>`;
-      })
+          <span class="item-name">${it.display_name}</span>
+        </div>`)
       .join("");
     menu.style.display = "block";
-    menu.querySelectorAll(".search-row").forEach((row) => {
+
+    menu.querySelectorAll(".search-row").forEach(row => {
       row.addEventListener("mousedown", (e) => {
         e.preventDefault();
-        const idx = Number(row.dataset.idx);
-        const it = state.results[idx];
-        if (!it) return;
-        state.onSelect(it.uniquename);
+        const it = state.results[row.dataset.idx];
+        state.onSelect(it);
         setComboValue(inputId, it.uniquename, it.display_name);
         menu.style.display = "none";
       });
@@ -78,40 +90,25 @@
     menu.style.display = "none";
     wrap.appendChild(menu);
 
-    comboState[inputId] = {
-      input, label, menu, onSelect,
-      uniquename: "", results: [], activeIndex: -1, timer: null, reqId: 0
-    };
+    comboState[inputId] = { input, label, menu, onSelect, results: [], activeIndex: -1, timer: null };
 
     input.addEventListener("input", () => {
       const state = comboState[inputId];
       const q = input.value.trim();
-      state.uniquename = "";
       if (!q) {
-        clearTimeout(state.timer);
-        state.label.textContent = "";
         state.results = [];
         menu.style.display = "none";
         return;
       }
       clearTimeout(state.timer);
       state.timer = setTimeout(async () => {
-        const curReqId = ++state.reqId;
         try {
           const r = await fetch(`${BASE}/api/v1/marrow/search?q=${encodeURIComponent(q)}`);
-          if (!r.ok) throw new Error();
-          const items = await r.json();
-          if (curReqId !== state.reqId) return;
-          state.results = Array.isArray(items) ? items : [];
+          state.results = await r.json();
           state.activeIndex = state.results.length ? 0 : -1;
           renderMenu(inputId);
-        } catch {
-          if (curReqId !== state.reqId) return;
-          state.results = [];
-          state.activeIndex = -1;
-          menu.style.display = "none";
-        }
-      }, 300);
+        } catch {}
+      }, 200);
     });
 
     input.addEventListener("keydown", (e) => {
@@ -124,15 +121,22 @@
         e.preventDefault();
         state.activeIndex = Math.max(state.activeIndex - 1, 0);
         renderMenu(inputId);
-      } else if (e.key === "Enter" && state.activeIndex >= 0) {
-        e.preventDefault();
-        const it = state.results[state.activeIndex];
-        state.onSelect(it.uniquename);
-        setComboValue(inputId, it.uniquename, it.display_name);
+      } else if (e.key === "Enter") {
+        if (state.activeIndex >= 0) {
+          e.preventDefault();
+          const it = state.results[state.activeIndex];
+          state.onSelect(it);
+          setComboValue(inputId, it.uniquename, it.display_name);
+        }
         menu.style.display = "none";
       } else if (e.key === "Escape") {
         menu.style.display = "none";
       }
+    });
+
+    input.addEventListener("blur", () => {
+      // Delay to allow mousedown on menu items to fire first
+      setTimeout(() => { menu.style.display = "none"; }, 200);
     });
 
     window.addEventListener("click", (e) => {
@@ -141,49 +145,41 @@
   }
 
   async function calculate() {
-    const item = comboState["alchemy-item-id"]?.uniquename || $("alchemy-item-id").value.trim();
-    const city = $("alchemy-city").value;
-    const returnRate = $("alchemy-return-rate").value;
-    const fee = $("alchemy-fee").value;
-    const batchSize = $("alchemy-batch").value || 1;
-
+    const item = comboState["alchemy-item-id"]?.uniquename;
     if (!item) return;
+
+    const useFocus = $("alchemy-focus").checked;
+    const dailyBonus = $("alchemy-daily").checked;
+    const isHideout = document.querySelector('input[name="location-type"]:checked').value === "hideout";
+    const hideoutPower = $("alchemy-ho-power").value;
+    const batchSize = $("alchemy-batch").value || 1;
 
     const btn = $("alchemy-calc");
     btn.disabled = true;
-    btn.textContent = "Analyzing...";
+    btn.textContent = "Analyzing Masterchemy...";
 
     try {
-      const r = await fetch(`${BASE}/api/v1/marrow/recommend/${encodeURIComponent(item)}?city=${encodeURIComponent(city)}`);
-      if (!r.ok) throw new Error("Fetch failed");
-      const d = await r.json();
-
-      renderResults(d, batchSize);
+      const r = await fetch(`${BASE}/api/v1/alchemy/analyze?item_id=${encodeURIComponent(item)}&batch_size=${batchSize}&use_focus=${useFocus}&daily_bonus=${dailyBonus}&is_hideout=${isHideout}&hideout_power=${hideoutPower}`);
+      const data = await r.json();
+      renderResults(data);
     } catch (err) {
       console.error(err);
     } finally {
       btn.disabled = false;
-      btn.textContent = "Calculate Profit";
+      btn.textContent = "Calculate yield";
     }
   }
 
-  function renderResults(d, batch) {
+  function renderResults(d) {
     const matList = $("materials-list");
     const resPanel = $("alchemy-result");
 
-    if (!d.is_craftable) {
-      matList.innerHTML = `<div class="error-msg">Item is not craftable (no recipe in DB)</div>`;
-      resPanel.innerHTML = "";
-      return;
-    }
-
-    // Render materials
-    const rows = d.crafting_materials.map(m => `
+    const matRows = d.materials.map(m => `
       <tr>
-        <td>${m.display_name}</td>
-        <td style="text-align:right">x${m.quantity * batch}</td>
-        <td style="text-align:right">${m.unit_price.toLocaleString()} s</td>
-        <td style="text-align:right; font-weight:600">${(m.total_cost * batch).toLocaleString()} s</td>
+        <td>${m.uniquename}</td>
+        <td style="text-align:right">x${m.total_required}</td>
+        <td style="text-align:right; color:var(--accent-2)">-${m.net_consumed.toFixed(1)}</td>
+        <td style="text-align:right; color:#22c55e">+${m.return_amount.toFixed(1)}</td>
       </tr>
     `).join("");
 
@@ -192,71 +188,53 @@
         <thead>
           <tr style="color:var(--muted); font-size:10px; text-transform:uppercase">
             <th style="text-align:left">Material</th>
-            <th style="text-align:right">Qty</th>
-            <th style="text-align:right">Unit</th>
-            <th style="text-align:right">Total</th>
+            <th style="text-align:right">Initial</th>
+            <th style="text-align:right">Net Consumed</th>
+            <th style="text-align:right">Returned</th>
           </tr>
         </thead>
-        <tbody>${rows}</tbody>
+        <tbody>${matRows}</tbody>
       </table>
     `;
 
-    // Render summary
-    const totalProfit = (d.crafting_profit || 0) * batch;
-    const profitCls = totalProfit > 0 ? "positive" : "negative";
-
     resPanel.innerHTML = `
       <div style="text-align:center; margin-bottom:16px">
-        <div class="stat-label">Total Profit for ${batch} Batch(es)</div>
-        <div class="profit-pill ${profitCls}">${totalProfit.toLocaleString()} s</div>
+        <div class="stat-label">Production Yield for ${d.batch_size} Runs</div>
+        <div class="profit-pill positive">${(d.craft_amount * d.batch_size * d.yield_multiplier).toFixed(1)} Items</div>
       </div>
       <div id="alchemy-result-stats">
         <div class="stat-box">
-          <div class="stat-label">Unit Profit</div>
-          <div class="stat-value">${d.crafting_profit ? d.crafting_profit.toLocaleString() : "—"} s</div>
+          <div class="stat-label">Resource Return Rate</div>
+          <div class="stat-value" style="color:var(--accent-2)">${(d.rrr * 100).toFixed(1)}%</div>
         </div>
         <div class="stat-box">
-          <div class="stat-label">Margin</div>
-          <div class="stat-value" style="color:${totalProfit > 0 ? '#22c55e' : '#ef4444'}">${d.crafting_margin_pct}%</div>
+          <div class="stat-label">Yield Multiplier</div>
+          <div class="stat-value">x${d.yield_multiplier.toFixed(2)}</div>
         </div>
         <div class="stat-box">
-          <div class="stat-label">Sale Price</div>
-          <div class="stat-value">${d.output_price.toLocaleString()} s</div>
+          <div class="stat-label">Bonus City</div>
+          <div class="stat-value">${d.best_city}</div>
         </div>
       </div>
     `;
   }
 
-  async function loadGold() {
-    const pill = $("gold-pill");
-    try {
-      const r = await fetch(`${BASE}/api/v1/marrow/gold`);
-      const d = await r.json();
-      pill.classList.remove("skeleton");
-      pill.innerHTML = `<span class="gold-dot"></span><span>Gold · ${d.price.toLocaleString()} s</span>`;
-    } catch {}
-  }
-
-  async function loadSettings() {
-    try {
-      const r = await fetch(`${BASE}/api/v1/settings`);
-      const s = await r.json();
-      if (s.return_rate_pct) $("alchemy-return-rate").value = s.return_rate_pct;
-      if (s.crafting_fee_pct) $("alchemy-fee").value = s.crafting_fee_pct;
-      if (s.default_city) $("alchemy-city").value = s.default_city;
-    } catch {}
-  }
-
   document.addEventListener("DOMContentLoaded", () => {
-    makeAutocomplete("alchemy-item-id", () => {});
-    $("alchemy-calc").addEventListener("click", calculate);
-    loadGold();
-    loadSettings();
-    setInterval(loadGold, 60000);
+    makeAutocomplete("alchemy-item-id", (it) => {
+      // Auto-select city
+      const best = getBestCity(it.shopcategory, it.shopsubcategory1);
+      const citySelect = $("alchemy-city");
+      if (citySelect) citySelect.value = best;
+    });
 
-    // Auto-update batch calculation if already calculated
-    $("alchemy-batch").addEventListener("input", () => {
-      // If we have a result, we could re-render, but for now simple.
+    $("alchemy-calc").addEventListener("click", calculate);
+
+    document.querySelectorAll('input[name="location-type"]').forEach(radio => {
+      radio.addEventListener("change", (e) => {
+        const isHO = e.target.value === "hideout";
+        $("hideout-controls").style.display = isHO ? "flex" : "none";
+        $("city-controls").style.display = isHO ? "none" : "flex";
+      });
     });
   });
 })();

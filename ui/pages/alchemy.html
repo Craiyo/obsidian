@@ -59,8 +59,8 @@
       </div>
       <section class="section">
         <div class="section-head">
-          <h2>Alchemy Workbench</h2>
-          <div id="gold-pill" class="gold-pill skeleton"><span class="gold-dot"></span><span>Gold: loading...</span></div>
+          <h2>Alchemy & Yield Optimizer</h2>
+          <div id="yield-badge" class="badge">Masterchemy v1.0</div>
         </div>
         <div class="workbench-grid">
           <div class="workbench-controls card">
@@ -72,47 +72,59 @@
                 <span id="alchemy-item-label" class="combo-label"></span>
               </div>
             </div>
-            <div class="row">
-            <div class="input-group">
-              <label>CITY (SELL DESTINATION)</label>
-              <select id="alchemy-city">
-                <option value="BlackMarket">Black Market</option>
-                <option value="Caerleon">Caerleon</option>
-                <option value="Bridgewatch">Bridgewatch</option>
-                <option value="Lymhurst">Lymhurst</option>
-                <option value="Martlock">Martlock</option>
-                <option value="Thetford">Thetford</option>
-                <option value="FortSterling">Fort Sterling</option>
-              </select>
+            <div class="row" style="margin-bottom: 16px;">
+              <div class="input-group">
+                <label>Location Type</label>
+                <div style="display:flex; gap:16px; align-items:center; height:36px;">
+                  <label style="display:flex; align-items:center; gap:6px; cursor:pointer;">
+                    <input type="radio" name="location-type" value="city" checked /> City
+                  </label>
+                  <label style="display:flex; align-items:center; gap:6px; cursor:pointer;">
+                    <input type="radio" name="location-type" value="hideout" /> Hideout
+                  </label>
+                </div>
+              </div>
             </div>
-            <div class="input-group">
-              <label>MATERIAL SOURCE</label>
-              <select id="alchemy-buy-city">
-                <option value="Martlock" selected>Martlock</option>
-                <option value="Caerleon">Caerleon</option>
-                <option value="Bridgewatch">Bridgewatch</option>
-                <option value="Lymhurst">Lymhurst</option>
-                <option value="Thetford">Thetford</option>
-                <option value="FortSterling">Fort Sterling</option>
-              </select>
-            </div>
-            <div class="input-group">
-              <label>BATCH SIZE</label>
-              <input type="number" id="alchemy-batch" value="20" min="1" />
-            </div>
-          </div>
 
-          <div class="row">
-            <div class="input-group">
-              <label>RETURN RATE %</label>
-              <input type="number" id="alchemy-return-rate" value="15.2" step="0.1" />
+            <div id="city-controls" class="row">
+              <div class="input-group">
+                <label>Crafting City (Wait for Auto)</label>
+                <select id="alchemy-city">
+                  <option value="Brecilien">Brecilien (Potions)</option>
+                  <option value="Caerleon">Caerleon (Food/Tools)</option>
+                  <option value="Lymhurst">Lymhurst</option>
+                  <option value="Martlock">Martlock</option>
+                  <option value="Bridgewatch">Bridgewatch</option>
+                  <option value="Thetford">Thetford</option>
+                  <option value="FortSterling">Fort Sterling</option>
+                  <option value="BlackMarket">Black Market</option>
+                </select>
+              </div>
             </div>
-            <div class="input-group">
-              <label>FEE %</label>
-              <input type="number" id="alchemy-fee" value="0" min="0" step="0.1" />
+
+            <div id="hideout-controls" class="row" style="display:none">
+              <div class="input-group">
+                <label>Hideout Power (0-9)</label>
+                <input type="number" id="alchemy-ho-power" value="5" min="0" max="9" />
+              </div>
             </div>
-          </div>
- <div style="margin-top:16px"><button id="alchemy-calc" class="btn-primary">Calculate Profit</button></div>
+
+            <div class="row">
+              <div class="input-group">
+                <label>Batch Size (Runs)</label>
+                <input type="number" id="alchemy-batch" value="20" min="1" />
+              </div>
+              <div class="input-group" style="display:flex; flex-direction:column; justify-content:center; gap:8px;">
+                <label style="display:flex; align-items:center; gap:6px; cursor:pointer;">
+                  <input type="checkbox" id="alchemy-focus" /> Use Focus
+                </label>
+                <label style="display:flex; align-items:center; gap:6px; cursor:pointer;">
+                  <input type="checkbox" id="alchemy-daily" /> Daily Bonus (+10%)
+                </label>
+              </div>
+            </div>
+            
+            <div style="margin-top:16px"><button id="alchemy-calc" class="btn-primary">Calculate yield</button></div>
           </div>
 
           <div class="workbench-materials card">
