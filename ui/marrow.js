@@ -209,12 +209,10 @@
   async function fetchPrice() {
     const item = comboState["price-item"]?.uniquename || "";
     const city = $("price-city").value;
-    const quality = $("price-quality").value;
     const btn = $("price-fetch");
     const source = $("price-source");
 
     setError("price-error", "");
-
     if (!item) {
       setError("price-error", "Enter an item ID");
       return;
@@ -225,26 +223,42 @@
     btn.textContent = "Fetching…";
 
     try {
-      const r = await fetch(
-        `${BASE}/api/v1/marrow/item/${encodeURIComponent(item)}?city=${encodeURIComponent(city)}&quality=${encodeURIComponent(quality)}`
+      const fetchPromises = [1, 2, 3, 4, 5].map(q => 
+        fetch(`${BASE}/api/v1/marrow/item/${encodeURIComponent(item)}?city=${encodeURIComponent(city)}&quality=${q}`)
+          .then(res => res.ok ? res.json() : null)
       );
-      if (!r.ok) throw new Error(`Failed to fetch price — ${r.status} ${r.statusText}`);
-      const data = await r.json();
+      const results = await Promise.all(fetchPromises);
+      
+      const qualityNames = ["Normal", "Good", "Outstanding", "Excellent", "Masterpiece"];
+      const colors = ["#9ca3af", "#22c55e", "#3b82f6", "#a855f7", "#eab308"];
+      
+      const out = document.getElementById("price-output");
+      out.style.display = "block";
+      
+      let tableRows = results.map((d, i) => {
+        if (!d || !d.sell_price_min) return "";
+        let sellPrice = d.sell_price_min ? d.sell_price_min.toLocaleString() : "—";
+        let buyPrice = d.buy_price_max ? d.buy_price_max.toLocaleString() : "—";
+        return `
+          <tr style="border-bottom:1px solid #f3f4f6">
+            <td style="padding:8px 0; font-weight:bold; color: ${colors[i]}">Q${i+1} ${qualityNames[i]}</td>
+            <td style="text-align:right;color:#166534;">${sellPrice}</td>
+            <td style="text-align:right;color:#991b1b;">${buyPrice}</td>
+          </tr>
+        `;
+      }).join("");
 
-      setMetric("price-sell-min", "price-sell-min-date", data.sell_price_min, data.sell_price_min_date);
-      setMetric("price-sell-max", "price-sell-max-date", data.sell_price_max, null);
-      setMetric("price-buy-min", "price-buy-min-date", data.buy_price_min, null);
-      setMetric("price-buy-max", "price-buy-max-date", data.buy_price_max, data.buy_price_max_date);
-
-      source.style.display = "inline-block";
-      source.textContent = data.source;
-      if (data.source === "cache") {
-        source.style.background = "#ede9fe";
-        source.style.color = "#6B46C1";
-      } else {
-        source.style.background = "#dcfce7";
-        source.style.color = "#166534";
-      }
+      out.innerHTML = `
+        <table style="width:100%; border-collapse:collapse;">
+          <tr style="border-bottom:1px solid #e5e7eb">
+            <th style="text-align:left;padding:8px 0">Quality</th>
+            <th style="text-align:right;padding:8px 0">Sell (Min)</th>
+            <th style="text-align:right;padding:8px 0">Buy (Max)</th>
+          </tr>
+          ${tableRows}
+        </table>
+      `;
+      source.style.display = "none";
     } catch (err) {
       setError("price-error", err?.message || "Network error");
     } finally {
@@ -253,7 +267,7 @@
     }
   }
 
-  async function fetchRecommendation(item, city, quality, days) {
+  async function fetchRecommendation(item, city, days) {
     const panel = $("recommend-panel");
     const verdict = $("recommend-verdict");
     const details = $("recommend-details");
@@ -263,7 +277,7 @@
 
     try {
       const r = await fetch(
-        `${BASE}/api/v1/marrow/recommend/${encodeURIComponent(item)}?city=${encodeURIComponent(city)}&quality=${encodeURIComponent(quality)}&days=${encodeURIComponent(days)}`
+        `${BASE}/api/v1/marrow/recommend/${encodeURIComponent(item)}?city=${encodeURIComponent(city)}&quality=1&days=${encodeURIComponent(days)}`
       );
       if (!r.ok) return;
       const d = await r.json();
@@ -272,48 +286,53 @@
       const icon = d.recommended ? "✅" : "❌";
       const trendText = d.bullish === true ? "📈 Rising" : d.bullish === false ? "📉 Falling" : "— No data";
 
+      const staleWarning = d.stale_data ? `<div style="color: #dc2626; font-size: 0.85em; margin-top: 4px;">⚠️ Warning: Market data is >24h old</div>` : "";
+      const historyStaleWarning = d.history_stale ? `<div style="color: #d97706; font-size: 0.85em; margin-top: 4px;">⚠️ History data is stale (>48h gap)</div>` : "";
+      const sparseWarning = (d.history_count < 5 && d.history_count > 0) ? `<div style="color: #d97706; font-size: 0.85em; margin-top: 4px;">⚠️ Sparse history data (${d.history_count} points)</div>` : "";
+      const transportWarning = d.transport_warning ? `<div style="color: #d97706; font-size: 0.85em; margin-top: 4px;">🚚 ${d.transport_warning}</div>` : "";
+      const daysToSell = d.estimated_days_to_sell ? ` (~${d.estimated_days_to_sell} days)` : "";
+
+      const confDisp = (d.confidence * 100).toFixed(0);
+      const diffStr = d.price_diff_pct != null ? ` <span style="font-size: 0.8em; font-weight: normal; color: ${d.price_diff_pct > 50 ? '#dc2626' : '#6b7280'}">(${d.price_diff_pct > 0 ? '+' : ''}${d.price_diff_pct.toFixed(0)}%)</span>` : "";
+      const priceColor = (d.price_diff_pct > 150) ? "#b91c1c" : (d.price_diff_pct > 50) ? "#b45309" : "#166534";
+
       verdict.innerHTML = `
         <div class="${cls}">
-          <div class="verdict-title">${icon} ${d.recommended ? "CRAFT IT" : "SKIP"}</div>
-          <div class="verdict-reason">${d.reason}</div>
-          <div class="verdict-stats">
+          <div class="verdict-title">${icon} ${d.recommended ? `TRADE OP (Q${d.quality})` : "SKIP"} <span style="font-size:0.75em;font-weight:normal;opacity:0.7;margin-left:8px">Score: ${confDisp}%</span></div>
+          <div class="verdict-reason" style="margin-bottom: 8px;">${d.reason}</div>
+          ${staleWarning}
+          ${historyStaleWarning}
+          ${sparseWarning}
+          ${transportWarning}
+          <div class="verdict-stats" style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
             <div class="verdict-stat">
-              <div class="verdict-stat-label">Profit / batch</div>
-              <div class="verdict-stat-value" style="color:${d.unit_profit >= 0 ? '#166534' : '#dc2626'}">${Number(d.unit_profit.toFixed(0)).toLocaleString()} silver</div>
+              <div class="verdict-stat-label">Current Price</div>
+              <div class="verdict-stat-value" style="color:${priceColor}">${Number(d.output_price).toLocaleString()} s${diffStr}</div>
             </div>
             <div class="verdict-stat">
-              <div class="verdict-stat-label">Suggested qty</div>
-              <div class="verdict-stat-value">${d.suggested_qty}</div>
+              <div class="verdict-stat-label">Historical Avg</div>
+              <div class="verdict-stat-value" style="color:#4b5563">${d.historical_avg ? Number(d.historical_avg).toLocaleString() + ' s' : '—'}</div>
             </div>
             <div class="verdict-stat">
-              <div class="verdict-stat-label">Trend</div>
+              <div class="verdict-stat-label">Suggested Qty</div>
+              <div class="verdict-stat-value">${d.suggested_qty}${daysToSell}</div>
+            </div>
+            <div class="verdict-stat">
+              <div class="verdict-stat-label">Trend Line</div>
               <div class="verdict-stat-value">${trendText}</div>
             </div>
             <div class="verdict-stat">
-              <div class="verdict-stat-label">Material cost</div>
-              <div class="verdict-stat-value">${Number(d.material_cost.toFixed(0)).toLocaleString()} silver</div>
+              <div class="verdict-stat-label">Avg Volume</div>
+              <div class="verdict-stat-value">${d.avg_daily_volume !== null ? d.avg_daily_volume.toFixed(1) : "—"}</div>
             </div>
             <div class="verdict-stat">
-              <div class="verdict-stat-label">Sell price</div>
-              <div class="verdict-stat-value">${Number(d.output_price).toLocaleString()} silver</div>
+              <div class="verdict-stat-label">Volatility</div>
+              <div class="verdict-stat-value">${d.price_volatility_pct !== null ? d.price_volatility_pct.toFixed(1) + '%' : "—"}</div>
             </div>
             <div class="verdict-stat">
-              <div class="verdict-stat-label">Margin</div>
-              <div class="verdict-stat-value">${d.profit_margin_pct.toFixed(1)}%</div>
+              <div class="verdict-stat-label">Best Market</div>
+              <div class="verdict-stat-value" style="color: #6B46C1">${d.best_sell_city || "—"}</div>
             </div>
-          </div>
-          <div class="verdict-materials">
-            <strong>Materials:</strong>
-            <table>
-              ${(d.materials || []).map(m => `
-                <tr>
-                  <td>${m.display_name}</td>
-                  <td style="text-align:right">×${m.quantity}</td>
-                  <td style="text-align:right">${Number(m.unit_price).toLocaleString()} ea</td>
-                  <td style="text-align:right">${Number(m.total_cost.toFixed(0)).toLocaleString()} total</td>
-                </tr>
-              `).join("")}
-            </table>
           </div>
         </div>
       `;
@@ -328,7 +347,6 @@
     const item = comboState["hist-item"]?.uniquename || "";
     const city = $("hist-city").value;
     const days = $("hist-days").value;
-    const quality = $("hist-quality") ? $("hist-quality").value : ($("price-quality") ? $("price-quality").value : 1);
     const btn = $("hist-fetch");
     const placeholder = $("hist-placeholder");
 
@@ -345,63 +363,90 @@
 
     try {
       const r = await fetch(
-        `${BASE}/api/v1/marrow/history/${encodeURIComponent(item)}?city=${encodeURIComponent(city)}&days=${encodeURIComponent(days)}`
+        `${BASE}/api/v1/marrow/history_bulk/${encodeURIComponent(item)}?city=${encodeURIComponent(city)}&days=${encodeURIComponent(days)}`
       );
-      if (!r.ok) throw new Error(`Failed to fetch history — ${r.status} ${r.statusText}`);
-      const data = await r.json();
+      if (!r.ok) throw new Error("History fetch failed");
+      const results = await r.json();
+      
+      const qualityNames = ["Normal", "Good", "Outstanding", "Excellent", "Masterpiece"];
+      const colors = ["#9ca3af", "#22c55e", "#3b82f6", "#a855f7", "#eab308"];
+      
+      let allLabels = new Set();
+      results.forEach(d => {
+        if (d && d.points) d.points.forEach(p => allLabels.add(String(p.timestamp || "").slice(0, 10)));
+      });
+      const labels = Array.from(allLabels).sort();
+      
+      const datasets = [];
+      let totalVolumes = new Array(labels.length).fill(0);
+      
+      // Calculate volumes first for the background dataset
+      results.forEach((d) => {
+        if (!d || !d.points) return;
+        labels.forEach((label, idx) => {
+            const pt = d.points.find(p => String(p.timestamp || "").slice(0, 10) === label);
+            if (pt) totalVolumes[idx] += pt.item_count;
+        });
+      });
 
-      const labels = (data.points || []).map((p) => String(p.timestamp || "").slice(0, 10));
-      const values = (data.points || []).map((p) => Number(p.avg_price || 0));
+      // Volume as the first dataset (rendered background)
+      datasets.push({
+          label: "Total Volume",
+          data: totalVolumes,
+          type: "bar",
+          backgroundColor: "rgba(107, 70, 193, 0.12)",
+          yAxisID: "y1",
+          order: 2
+      });
+      
+      results.forEach((d, i) => {
+        if (!d || !d.points || d.points.length === 0) return;
+        
+        const qPrices = labels.map(label => {
+            const pt = d.points.find(p => String(p.timestamp || "").slice(0, 10) === label);
+            return pt ? pt.avg_price : null;
+        });
+        
+        datasets.push({
+            label: `Q${d.quality}`,
+            data: qPrices,
+            borderColor: colors[d.quality-1],
+            backgroundColor: "transparent",
+            borderWidth: 2,
+            tension: 0.3,
+            spanGaps: true,
+            yAxisID: "y",
+            order: 1
+        });
+      });
 
       if (histChart) {
         histChart.destroy();
         histChart = null;
       }
 
-      if (!values.length) {
+      if (labels.length === 0) {
         placeholder.textContent = "No history points";
         placeholder.style.display = "flex";
-        // still request recommendation even if history empty
-        await fetchRecommendation(item, city, quality, days);
-        btn.disabled = false;
-        btn.textContent = old;
-        return;
+      } else {
+        placeholder.style.display = "none";
+        const ctx = $("hist-chart").getContext("2d");
+        histChart = new Chart(ctx, {
+            type: "line",
+            data: { labels: labels, datasets: datasets },
+            options: {
+                responsive: true, maintainAspectRatio: false, interaction: { mode: 'index', intersect: false },
+                scales: {
+                    y: { type: "linear", display: true, position: "left", title: { display: true, text: "Silver" }, ticks: { callback(value) { return Number(value).toLocaleString(); } } },
+                    y1: { type: "linear", display: true, position: "right", title: { display: true, text: "Volume" }, grid: { drawOnChartArea: false }, beginAtZero: true }
+                }
+            }
+        });
       }
 
-      placeholder.style.display = "none";
-      const ctx = $("hist-chart").getContext("2d");
-      histChart = new Chart(ctx, {
-        type: "line",
-        data: {
-          labels,
-          datasets: [
-            {
-              label: `${data.uniquename} — ${data.city}`,
-              data: values,
-              borderColor: "#8b5cf6",
-              borderWidth: 2,
-              pointRadius: 0,
-              fill: false,
-              tension: 0.3,
-            },
-          ],
-        },
-        options: {
-          responsive: true,
-          maintainAspectRatio: false,
-          scales: {
-            y: { ticks: { callback(value) { return Number(value).toLocaleString(); } } },
-          },
-          plugins: {
-            tooltip: { callbacks: { label(context) { const p = data.points[context.dataIndex] || {}; return `${Number(context.raw || 0).toLocaleString()} silver · vol ${p.item_count ?? 0}`; } } },
-          },
-        },
-      });
-
-      // request recommendation and render panel
-      await fetchRecommendation(item, city, quality, days);
-
+      await fetchRecommendation(item, city, days);
     } catch (err) {
+      console.error(err);
       setError("hist-error", err?.message || "Network error");
     } finally {
       btn.disabled = false;
@@ -539,6 +584,20 @@
 
     loadGold();
     loadFavourites();
+
+    // Direct-Link: Listen for live data from the sniffer
+    if (window.__TAURI__) {
+      const { listen } = window.__TAURI__.event;
+      listen("marrow-ingest", (event) => {
+        const itemIds = event.payload;
+        const currentId = $("price-item").value.trim();
+        
+        if (currentId && itemIds.includes(currentId)) {
+          console.log("[marrow-direct] Live update detected for", currentId);
+          fetchRecommendation();
+        }
+      });
+    }
 
     setInterval(loadGold, 60_000);
   });

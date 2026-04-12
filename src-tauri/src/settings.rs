@@ -34,7 +34,7 @@ impl AlbionServer {
 }
 
 impl Default for AlbionServer {
-    fn default() -> Self { AlbionServer::Americas }
+    fn default() -> Self { AlbionServer::Asia }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

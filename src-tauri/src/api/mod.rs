@@ -28,6 +28,7 @@ pub struct AppState {
     pub settings_path: PathBuf,
     pub http: reqwest::Client,
     pub albion_server: crate::settings::AlbionServer,
+    pub app_handle: tauri::AppHandle,
 
     // Cached crafting parameters for handlers
     pub return_rate_pct: f64,
@@ -39,6 +40,7 @@ impl AppState {
         db: SqlitePool,
         settings_path: PathBuf,
         albion_server: crate::settings::AlbionServer,
+        app_handle: tauri::AppHandle,
         return_rate_pct: f64,
         crafting_fee_pct: f64,
     ) -> Self {
@@ -51,6 +53,7 @@ impl AppState {
             settings_path,
             http,
             albion_server,
+            app_handle,
             return_rate_pct,
             crafting_fee_pct,
         }

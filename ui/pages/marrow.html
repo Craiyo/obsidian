@@ -111,17 +111,11 @@
               <option>Bridgewatch</option><option>Caerleon</option><option>Fort Sterling</option>
               <option>Lymhurst</option><option>Martlock</option><option>Thetford</option>
             </select>
-            <input id="price-quality" class="input w60" type="number" min="1" max="5" value="1" />
             <button id="price-fetch" class="btn-primary">Fetch</button>
             <span id="price-source" class="source-badge"></span>
           </div>
           <div id="price-error" class="error-msg"></div>
-          <div class="price-grid">
-            <div class="metric-card"><div class="metric-label">Sell min</div><div id="price-sell-min" class="metric-value green">—</div><div id="price-sell-min-date" class="metric-sub"></div></div>
-            <div class="metric-card"><div class="metric-label">Sell max</div><div id="price-sell-max" class="metric-value green">—</div><div id="price-sell-max-date" class="metric-sub"></div></div>
-            <div class="metric-card"><div class="metric-label">Buy min</div><div id="price-buy-min" class="metric-value blue">—</div><div id="price-buy-min-date" class="metric-sub"></div></div>
-            <div class="metric-card"><div class="metric-label">Buy max</div><div id="price-buy-max" class="metric-value blue">—</div><div id="price-buy-max-date" class="metric-sub"></div></div>
-          </div>
+          <div id="price-output" style="display:none; margin-top:16px;"></div>
         </div>
       </section>
 
@@ -137,7 +131,7 @@
               <option>Bridgewatch</option><option>Caerleon</option><option>Fort Sterling</option>
               <option>Lymhurst</option><option>Martlock</option><option>Thetford</option>
             </select>
-            <input id="hist-days" class="input w60" type="number" min="1" max="30" value="7" />
+            <input id="hist-days" class="input w60" type="number" min="1" max="30" value="14" />
             <button id="hist-fetch" class="btn-primary">Fetch</button>
           </div>
           <div id="hist-error" class="error-msg"></div>

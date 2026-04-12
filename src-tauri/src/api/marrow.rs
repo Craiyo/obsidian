@@ -18,6 +18,12 @@ pub struct HistoryQuery {
 }
 
 #[derive(Debug, Deserialize)]
+pub struct BulkHistoryQuery {
+    pub city: String,
+    pub days: Option<i64>,
+}
+
+#[derive(Debug, Deserialize)]
 pub struct SearchQuery {
     pub q: String,
 }
@@ -34,14 +40,19 @@ pub struct RecommendQuery {
     pub days: Option<i64>,
 }
 
+#[derive(Debug, Deserialize)]
+pub struct ItemsQuery {
+    pub ids: String,
+}
+
 async fn recommend_item(
     State(state): State<AppState>,
     Path(id): Path<String>,
     Query(query): Query<RecommendQuery>,
-) -> Result<Json<crate::modules::marrow_recommend::RecommendDecision>, ApiError> {
+) -> Result<Json<crate::modules::marrow::RecommendDecision>, ApiError> {
     let quality = query.quality.unwrap_or(1);
     let days = query.days.unwrap_or(14);
-    let decision = crate::modules::marrow_recommend::recommend_item(
+    let decision = crate::modules::marrow::recommend_item(
         &state.db,
         &state.http,
         state.albion_server,
@@ -60,11 +71,15 @@ pub fn router() -> Router<AppState> {
     Router::new()
         .route("/item/:id", get(price))
         .route("/history/:id", get(history))
+        .route("/history_bulk/:id", get(history_bulk))
         .route("/search", get(search))
         .route("/favourites", get(favourites).post(add_favourite))
         .route("/favourites/:id", delete(remove_favourite))
         .route("/recommend/:id", get(recommend_item))
         .route("/gold", get(gold))
+        .route("/items", get(items))
+        .route("/ingest/marketorders", axum::routing::post(ingest_market_orders))
+        .route("/ingest/markethistory", axum::routing::post(ingest_market_history))
 }
 
 async fn price(
@@ -100,6 +115,24 @@ async fn history(
         &id,
         &query.city,
         quality,
+        days,
+    )
+    .await?;
+    Ok(Json(response))
+}
+
+async fn history_bulk(
+    State(state): State<AppState>,
+    Path(id): Path<String>,
+    Query(query): Query<BulkHistoryQuery>,
+) -> Result<Json<Vec<marrow::HistoryResponse>>, ApiError> {
+    let days = query.days.unwrap_or(7);
+    let response = marrow::get_history_bulk(
+        &state.db,
+        &state.http,
+        state.albion_server,
+        &id,
+        &query.city,
         days,
     )
     .await?;
@@ -142,4 +175,35 @@ async fn gold(
 ) -> Result<Json<marrow::GoldResponse>, ApiError> {
     let response = marrow::get_gold(&state.db, &state.http).await?;
     Ok(Json(response))
+}
+
+async fn items(
+    State(state): State<AppState>,
+    Query(query): Query<ItemsQuery>,
+) -> Result<Json<Vec<marrow::SearchResult>>, ApiError> {
+    let ids: Vec<String> = query.ids.split(',').map(|s| s.trim().to_string()).filter(|s| !s.is_empty()).collect();
+    let results = marrow::get_items_by_ids(&state.db, &ids).await?;
+    Ok(Json(results))
+}
+async fn ingest_market_orders(
+    State(state): State<AppState>,
+    Json(payload): Json<marrow::IngestMarketUpload>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    let item_ids: Vec<String> = payload.Orders.iter().map(|o| o.ItemTypeId.clone()).collect();
+    
+    marrow::ingest_market_orders(&state.db, payload).await?;
+    
+    // Notify UI that these items have new data
+    use tauri::Manager;
+    let _ = state.app_handle.emit_all("marrow-ingest", item_ids);
+    
+    Ok(Json(serde_json::json!({ "status": "ok" })))
+}
+
+async fn ingest_market_history(
+    State(state): State<AppState>,
+    Json(payload): Json<marrow::IngestMarketHistoriesUpload>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    marrow::ingest_market_history(&state.db, payload).await?;
+    Ok(Json(serde_json::json!({ "status": "ok" })))
 }
