@@ -11,6 +11,7 @@
   --border: #242938;
   --radius: 10px;
   --shadow: 0 12px 30px rgba(0, 0, 0, 0.45);
+  --glow: 0 0 15px rgba(127, 86, 217, 0.4);
 }
 
 * { box-sizing: border-box; }
@@ -255,6 +256,71 @@ pre.card {
   padding: 8px 10px;
   color: var(--text);
   font-size: 13px;
+  outline: none;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.field input:focus, .field select:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px rgba(127, 86, 217, 0.2);
+}
+
+/* Custom Checkbox/Radio */
+input[type="checkbox"], input[type="radio"] {
+  appearance: none;
+  width: 16px;
+  height: 16px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--panel-2);
+  cursor: pointer;
+  position: relative;
+  transition: background 0.2s, border-color 0.2s;
+}
+
+input[type="radio"] { border-radius: 50%; }
+
+input[type="checkbox"]:checked, input[type="radio"]:checked {
+  background: var(--accent);
+  border-color: var(--accent);
+  box-shadow: 0 0 8px rgba(127, 86, 217, 0.5);
+}
+
+input[type="checkbox"]:checked::after {
+  content: '✓';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  color: white;
+  font-size: 10px;
+}
+
+input[type="radio"]:checked::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: white;
+}
+
+/* Skeleton Animation */
+@keyframes pulse {
+  0% { opacity: 1; }
+  50% { opacity: 0.4; }
+  100% { opacity: 1; }
+}
+
+.skeleton {
+  animation: pulse 1.5s infinite ease-in-out;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 4px;
+  color: transparent !important;
+  pointer-events: none;
 }
 
 .btn {

@@ -53,9 +53,10 @@ pub fn get_best_city(shop_category: &str, sub_category: &str) -> &'static str {
             else { "Caerleon" }
         }
         "weapons" => {
-            if ["sword", "bow", "arcanestaff"].iter().any(|&s| sub.contains(s)) { "Lymhurst" }
+            if sub.contains("crossbow") { "Bridgewatch" }
+            else if ["sword", "bow", "arcanestaff"].iter().any(|&s| sub.contains(s)) { "Lymhurst" }
             else if sub.contains("axe") { "Martlock" }
-            else if ["crossbow", "dagger", "cursestaff"].iter().any(|&s| sub.contains(s)) { "Bridgewatch" }
+            else if ["dagger", "cursestaff"].iter().any(|&s| sub.contains(s)) { "Bridgewatch" }
             else if ["mace", "naturestaff", "firestaff"].iter().any(|&s| sub.contains(s)) { "Thetford" }
             else if ["hammer", "spear", "holystaff", "froststaff"].iter().any(|&s| sub.contains(s)) { "FortSterling" }
             else { "Caerleon" }

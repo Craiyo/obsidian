@@ -14,9 +14,10 @@
       return "Caerleon";
     }
     if (cat === "weapons") {
+      if (sub.includes("crossbow")) return "Bridgewatch";
       if (["sword", "bow", "arcanestaff"].some(s => sub.includes(s))) return "Lymhurst";
       if (["axe"].some(s => sub.includes(s))) return "Martlock";
-      if (["crossbow", "dagger", "cursestaff"].some(s => sub.includes(s))) return "Bridgewatch";
+      if (["dagger", "cursestaff"].some(s => sub.includes(s))) return "Bridgewatch";
       if (["mace", "naturestaff", "firestaff"].some(s => sub.includes(s))) return "Thetford";
       if (["hammer", "spear", "holystaff", "froststaff"].some(s => sub.includes(s))) return "FortSterling";
       return "Caerleon";
@@ -155,8 +156,22 @@
     const batchSize = $("alchemy-batch").value || 1;
 
     const btn = $("alchemy-calc");
+    const resPanel = $("alchemy-result");
+
+    // Show Skeleton state
+    resPanel.innerHTML = `
+      <div style="text-align:center; margin-bottom:16px">
+        <div class="stat-label skeleton">Loading Yield Multiplier...</div>
+        <div class="profit-pill positive skeleton">0000.0 Items</div>
+      </div>
+      <div id="alchemy-result-stats">
+        <div class="stat-box skeleton"><div class="stat-value">---</div></div>
+        <div class="stat-box skeleton"><div class="stat-value">---</div></div>
+        <div class="stat-box skeleton"><div class="stat-value">---</div></div>
+      </div>
+    `;
+
     btn.disabled = true;
-    btn.textContent = "Analyzing Masterchemy...";
 
     try {
       const r = await fetch(`${BASE}/api/v1/alchemy/analyze?item_id=${encodeURIComponent(item)}&batch_size=${batchSize}&use_focus=${useFocus}&daily_bonus=${dailyBonus}&is_hideout=${isHideout}&hideout_power=${hideoutPower}`);
@@ -176,47 +191,55 @@
 
     const matRows = d.materials.map(m => `
       <tr>
-        <td>${m.uniquename}</td>
+        <td style="font-size:11px; font-weight:600; color:var(--muted)">${m.uniquename}</td>
         <td style="text-align:right">x${m.total_required}</td>
-        <td style="text-align:right; color:var(--accent-2)">-${m.net_consumed.toFixed(1)}</td>
-        <td style="text-align:right; color:#22c55e">+${m.return_amount.toFixed(1)}</td>
+        <td style="text-align:right; color:var(--accent); font-weight:500">-${m.net_consumed.toFixed(1)}</td>
+        <td style="text-align:right; color:var(--accent-2); font-weight:500">+${m.return_amount.toFixed(1)}</td>
       </tr>
     `).join("");
 
     matList.innerHTML = `
       <table class="materials-table">
         <thead>
-          <tr style="color:var(--muted); font-size:10px; text-transform:uppercase">
+          <tr style="color:var(--muted); font-size:10px; text-transform:uppercase; letter-spacing:1px">
             <th style="text-align:left">Material</th>
             <th style="text-align:right">Initial</th>
-            <th style="text-align:right">Net Consumed</th>
-            <th style="text-align:right">Returned</th>
+            <th style="text-align:right">Net</th>
+            <th style="text-align:right">Ret</th>
           </tr>
         </thead>
         <tbody>${matRows}</tbody>
       </table>
     `;
 
+    resPanel.style.opacity = "0";
     resPanel.innerHTML = `
-      <div style="text-align:center; margin-bottom:16px">
-        <div class="stat-label">Production Yield for ${d.batch_size} Runs</div>
-        <div class="profit-pill positive">${(d.craft_amount * d.batch_size * d.yield_multiplier).toFixed(1)} Items</div>
+      <div style="text-align:center; margin-bottom:20px; text-shadow: 0 0 15px rgba(127, 86, 217, 0.25)">
+        <div class="stat-label" style="letter-spacing:1px; color:var(--muted)">TOTAL PRODUCTION YIELD (${d.batch_size} RUNS)</div>
+        <div class="profit-pill positive" style="font-size:32px; font-family:'Cinzel', serif; border:none; background:none; text-shadow: 0 0 12px rgba(34, 197, 94, 0.4)">
+          ${(d.craft_amount * d.batch_size * d.yield_multiplier).toFixed(1)} <span style="font-size:14px; font-family:'Inter', sans-serif; opacity:0.8">Items</span>
+        </div>
       </div>
       <div id="alchemy-result-stats">
-        <div class="stat-box">
-          <div class="stat-label">Resource Return Rate</div>
+        <div class="stat-box" style="border-top: 2px solid var(--accent); background: linear-gradient(180deg, rgba(127, 86, 217, 0.05) 0%, transparent 100%)">
+          <div class="stat-label">Return Rate (RRR)</div>
           <div class="stat-value" style="color:var(--accent-2)">${(d.rrr * 100).toFixed(1)}%</div>
         </div>
-        <div class="stat-box">
-          <div class="stat-label">Yield Multiplier</div>
-          <div class="stat-value">x${d.yield_multiplier.toFixed(2)}</div>
+        <div class="stat-box" style="border-top: 2px solid var(--accent); background: linear-gradient(180deg, rgba(127, 86, 217, 0.05) 0%, transparent 100%)">
+          <div class="stat-label">Multiplier</div>
+          <div class="stat-value">x${d.yield_multiplier.toFixed(3)}</div>
         </div>
-        <div class="stat-box">
-          <div class="stat-label">Bonus City</div>
-          <div class="stat-value">${d.best_city}</div>
+        <div class="stat-box" style="border-top: 2px solid var(--accent); background: linear-gradient(180deg, rgba(127, 86, 217, 0.05) 0%, transparent 100%)">
+          <div class="stat-label">Bonus Check</div>
+          <div class="stat-value" style="font-size:13px">${d.best_city}</div>
         </div>
       </div>
     `;
+    
+    setTimeout(() => {
+        resPanel.style.transition = "opacity 0.4s ease-out";
+        resPanel.style.opacity = "1";
+    }, 10);
   }
 
   document.addEventListener("DOMContentLoaded", () => {
