@@ -15,6 +15,7 @@ reqwest = { version = "0.12", features = ["json", "rustls-tls"] }
 sqlx = { version = "0.7", features = ["runtime-tokio-rustls", "sqlite", "chrono", "macros", "migrate"] }
 chrono = { version = "0.4", features = ["serde"] }
 toml = "0.8"
+futures-util = "0.3"
 
 [build-dependencies]
 tauri-build = { version = "1.5", features = [] }

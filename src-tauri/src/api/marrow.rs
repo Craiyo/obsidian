@@ -49,6 +49,8 @@ async fn recommend_item(
         &query.city,
         quality,
         days,
+        state.return_rate_pct,
+        state.crafting_fee_pct,
     )
     .await?;
     Ok(Json(decision))

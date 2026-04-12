@@ -2,7 +2,7 @@ use serde::Serialize;
 use sqlx::{Row, SqlitePool};
 use crate::settings::AlbionServer;
 use crate::modules::marrow::{self, HistoryPoint};
-use futures::future::join_all;
+use futures_util::future::join_all;
 
 #[derive(Debug, Serialize)]
 pub struct CityPriceSummary {
@@ -232,8 +232,8 @@ pub async fn recommend_item(
         Some(round2(mean))
     };
 
-    // min_daily_volume: keep worst day for reference. Use .min() then .copied() via into_iter()
-    let min_daily_volume = history_points.iter().map(|p| p.item_count).min().into_iter().copied().next();
+    // min_daily_volume: keep worst day for reference.
+    let min_daily_volume = history_points.iter().map(|p| p.item_count).min();
 
     let suggested_qty = avg_daily_volume.map(|v| ((v * 0.2).round() as i64).max(1)).unwrap_or(1);
 
