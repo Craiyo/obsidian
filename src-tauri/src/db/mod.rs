@@ -82,13 +82,8 @@ pub async fn seed_items_if_empty(pool: &SqlitePool, _app: &tauri::AppHandle) -> 
     let rows = item_map::parse_items_json(&items_path, &display_names)
         .map_err(|e| DbError::Io(std::io::Error::new(std::io::ErrorKind::Other, e.to_string())))?;
 
-    // Filter to only items present in the display names map (item_names.json)
-    let filtered: Vec<_> = rows
-        .into_iter()
-        .filter(|r| display_names.contains_key(&r.uniquename))
-        .collect();
-
-    item_map::insert_items(pool, filtered).await?;
+    // Insert all parsed items into the DB (do not filter by item_names.json)
+    item_map::insert_items(pool, rows).await?;
 
     eprintln!("[db] items seeded");
     Ok(())

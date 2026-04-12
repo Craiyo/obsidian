@@ -253,10 +253,82 @@
     }
   }
 
+  async function fetchRecommendation(item, city, quality, days) {
+    const panel = $("recommend-panel");
+    const verdict = $("recommend-verdict");
+    const details = $("recommend-details");
+    panel.style.display = "none";
+    verdict.innerHTML = "";
+    details.innerHTML = "";
+
+    try {
+      const r = await fetch(
+        `${BASE}/api/v1/marrow/recommend/${encodeURIComponent(item)}?city=${encodeURIComponent(city)}&quality=${encodeURIComponent(quality)}&days=${encodeURIComponent(days)}`
+      );
+      if (!r.ok) return;
+      const d = await r.json();
+
+      const cls = d.recommended ? "verdict-yes" : "verdict-no";
+      const icon = d.recommended ? "✅" : "❌";
+      const trendText = d.bullish === true ? "📈 Rising" : d.bullish === false ? "📉 Falling" : "— No data";
+
+      verdict.innerHTML = `
+        <div class="${cls}">
+          <div class="verdict-title">${icon} ${d.recommended ? "CRAFT IT" : "SKIP"}</div>
+          <div class="verdict-reason">${d.reason}</div>
+          <div class="verdict-stats">
+            <div class="verdict-stat">
+              <div class="verdict-stat-label">Profit / batch</div>
+              <div class="verdict-stat-value" style="color:${d.unit_profit >= 0 ? '#166534' : '#dc2626'}">${Number(d.unit_profit.toFixed(0)).toLocaleString()} silver</div>
+            </div>
+            <div class="verdict-stat">
+              <div class="verdict-stat-label">Suggested qty</div>
+              <div class="verdict-stat-value">${d.suggested_qty}</div>
+            </div>
+            <div class="verdict-stat">
+              <div class="verdict-stat-label">Trend</div>
+              <div class="verdict-stat-value">${trendText}</div>
+            </div>
+            <div class="verdict-stat">
+              <div class="verdict-stat-label">Material cost</div>
+              <div class="verdict-stat-value">${Number(d.material_cost.toFixed(0)).toLocaleString()} silver</div>
+            </div>
+            <div class="verdict-stat">
+              <div class="verdict-stat-label">Sell price</div>
+              <div class="verdict-stat-value">${Number(d.output_price).toLocaleString()} silver</div>
+            </div>
+            <div class="verdict-stat">
+              <div class="verdict-stat-label">Margin</div>
+              <div class="verdict-stat-value">${d.profit_margin_pct.toFixed(1)}%</div>
+            </div>
+          </div>
+          <div class="verdict-materials">
+            <strong>Materials:</strong>
+            <table>
+              ${(d.materials || []).map(m => `
+                <tr>
+                  <td>${m.display_name}</td>
+                  <td style="text-align:right">×${m.quantity}</td>
+                  <td style="text-align:right">${Number(m.unit_price).toLocaleString()} ea</td>
+                  <td style="text-align:right">${Number(m.total_cost.toFixed(0)).toLocaleString()} total</td>
+                </tr>
+              `).join("")}
+            </table>
+          </div>
+        </div>
+      `;
+
+      panel.style.display = "block";
+    } catch (e) {
+      // silently fail
+    }
+  }
+
   async function fetchHistory() {
     const item = comboState["hist-item"]?.uniquename || "";
     const city = $("hist-city").value;
     const days = $("hist-days").value;
+    const quality = $("hist-quality") ? $("hist-quality").value : ($("price-quality") ? $("price-quality").value : 1);
     const btn = $("hist-fetch");
     const placeholder = $("hist-placeholder");
 
@@ -282,44 +354,15 @@
       const values = (data.points || []).map((p) => Number(p.avg_price || 0));
 
       if (histChart) {
-        // Destroy previous chart instance before creating a new one to avoid leaks.
         histChart.destroy();
         histChart = null;
       }
 
-      const badge = $("recommendation-badge");
-      badge.textContent = "";
-      badge.className = "";
-
       if (!values.length) {
         placeholder.textContent = "No history points";
         placeholder.style.display = "flex";
-        // Still request recommendation (fallback path) even when history is empty
-        try {
-          const recR = await fetch(`${BASE}/api/v1/marrow/recommend/${encodeURIComponent(item)}?city=${encodeURIComponent(city)}&days=${encodeURIComponent(days)}`);
-          if (recR.ok) {
-            const rec = await recR.json();
-            if (rec.item) {
-              const it = rec.item;
-              if (rec.recommended) {
-                badge.className = "metric-sub";
-                badge.textContent = `Recommend CRAFT — qty ${it.craft_qty} · est profit ${Number(it.expected_sales_profit).toFixed(0)} silver`;
-              } else {
-                badge.className = "muted";
-                badge.textContent = `Do NOT craft: ${rec.reason || 'no reason provided'}`;
-              }
-            } else {
-              badge.className = "muted";
-              badge.textContent = `Do NOT craft: ${rec.reason || 'no recipe found'}`;
-            }
-          } else {
-            badge.className = "muted";
-            badge.textContent = `Recommendation unavailable — ${recR.status}`;
-          }
-        } catch (e) {
-          // ignore recommendation failures
-        }
-
+        // still request recommendation even if history empty
+        await fetchRecommendation(item, city, quality, days);
         btn.disabled = false;
         btn.textContent = old;
         return;
@@ -347,53 +390,16 @@
           responsive: true,
           maintainAspectRatio: false,
           scales: {
-            y: {
-              ticks: {
-                callback(value) {
-                  return Number(value).toLocaleString();
-                },
-              },
-            },
+            y: { ticks: { callback(value) { return Number(value).toLocaleString(); } } },
           },
           plugins: {
-            tooltip: {
-              callbacks: {
-                label(context) {
-                  const p = data.points[context.dataIndex] || {};
-                  return `${Number(context.raw || 0).toLocaleString()} silver · vol ${p.item_count ?? 0}`;
-                },
-              },
-            },
+            tooltip: { callbacks: { label(context) { const p = data.points[context.dataIndex] || {}; return `${Number(context.raw || 0).toLocaleString()} silver · vol ${p.item_count ?? 0}`; } } },
           },
         },
       });
 
-      // Request per-item recommendation and display a short badge under the chart
-      try {
-        const recR = await fetch(`${BASE}/api/v1/marrow/recommend/${encodeURIComponent(item)}?city=${encodeURIComponent(city)}&days=${encodeURIComponent(days)}`);
-        const badge = $("recommendation-badge");
-        if (!recR.ok) {
-          badge.className = "muted";
-          badge.textContent = `Recommendation unavailable — ${recR.status}`;
-        } else {
-          const rec = await recR.json();
-          if (rec.item) {
-            const it = rec.item;
-            if (rec.recommended) {
-              badge.className = "metric-sub";
-              badge.textContent = `Recommend CRAFT — qty ${it.craft_qty} · est profit ${Number(it.expected_sales_profit).toFixed(0)} silver`;
-            } else {
-              badge.className = "muted";
-              badge.textContent = `Do NOT craft: ${rec.reason || 'no reason provided'}`;
-            }
-          } else {
-            badge.className = "muted";
-            badge.textContent = `Do NOT craft: ${rec.reason || 'no recipe found'}`;
-          }
-        }
-      } catch (e) {
-        // ignore recommendation failures
-      }
+      // request recommendation and render panel
+      await fetchRecommendation(item, city, quality, days);
 
     } catch (err) {
       setError("hist-error", err?.message || "Network error");
@@ -403,29 +409,6 @@
     }
   }
 
-  async function fetchRecommendations() {
-    const city = $("recommend-city").value;
-    const limit = $("recommend-limit").value;
-    const list = $("recommend-list");
-    list.className = "muted";
-    list.textContent = "Loading...";
-    try {
-      const r = await fetch(`${BASE}/api/v1/marrow/recommend?city=${encodeURIComponent(city)}&limit=${encodeURIComponent(limit)}`);
-      if (!r.ok) throw new Error();
-      const items = await r.json();
-      if (!items.length) {
-        list.className = "muted";
-        list.textContent = "No recommendations";
-        return;
-      }
-      list.className = "";
-      list.innerHTML = `<table style="width:100%;border-collapse:collapse"><thead><tr><th>Item</th><th>Qty</th><th>Unit Profit</th><th>Expected Profit</th><th>Action</th></tr></thead><tbody>${items.map(it => `<tr><td>${it.display_name} (${it.uniquename})</td><td>${it.craft_qty}</td><td>${Number(it.unit_profit).toFixed(0)}</td><td>${Number(it.expected_sales_profit).toFixed(0)}</td><td><button class="btn-primary rec-craft" data-id="${it.uniquename}" data-qty="${it.craft_qty}">Craft</button></td></tr>`).join("")}</tbody></table>`;
-      list.querySelectorAll("button.rec-craft").forEach(btn=>{ btn.addEventListener("click",(e)=>{ const id=btn.dataset.id; const qty=btn.dataset.qty; fillInputs(id); const cityEl = $("price-city"); if (cityEl) cityEl.value = $("recommend-city").value; })});
-    } catch {
-      list.className = "error-msg";
-      list.textContent = "Failed to load recommendations";
-    }
-  }
 
   async function addFavourite() {
     const input = $("fav-item");
@@ -556,7 +539,7 @@
 
     loadGold();
     loadFavourites();
-    $("recommend-btn")?.addEventListener("click", fetchRecommendations);
+
     setInterval(loadGold, 60_000);
   });
 })();

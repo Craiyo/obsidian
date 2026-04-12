@@ -32,27 +32,6 @@ pub struct RecommendQuery {
     pub city: String,
     pub quality: Option<i64>,
     pub days: Option<i64>,
-    pub limit: Option<i64>,
-}
-
-async fn recommend(
-    State(state): State<AppState>,
-    Query(query): Query<RecommendQuery>,
-) -> Result<Json<Vec<crate::modules::marrow_recommend::RecommendItem>>, ApiError> {
-    let quality = query.quality.unwrap_or(1);
-    let days = query.days.unwrap_or(14);
-    let limit = query.limit.unwrap_or(20) as usize;
-    let results = crate::modules::marrow_recommend::recommend(
-        &state.db,
-        &state.http,
-        state.albion_server,
-        &query.city,
-        quality,
-        days,
-        limit,
-    )
-    .await?;
-    Ok(Json(results))
 }
 
 async fn recommend_item(
@@ -82,7 +61,6 @@ pub fn router() -> Router<AppState> {
         .route("/search", get(search))
         .route("/favourites", get(favourites).post(add_favourite))
         .route("/favourites/:id", delete(remove_favourite))
-        .route("/recommend", get(recommend))
         .route("/recommend/:id", get(recommend_item))
         .route("/gold", get(gold))
 }
