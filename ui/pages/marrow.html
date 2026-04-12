@@ -121,19 +121,43 @@
 
       <section id="section-history" class="section-card">
         <div class="section-head"><h2>Price History</h2></div>
-        <div class="section-body">
-          <div class="row">
-            <div class="combo-wrap">
-              <input id="hist-item" class="input" type="text" placeholder="T4_BAG" autocomplete="off" />
-              <span id="hist-item-label" class="combo-label"></span>
+        <div class="search-bar">
+          <div class="input-group">
+            <label>Item</label>
+            <div class="autocomplete-container">
+              <input type="text" id="hist-item" placeholder="Search item..." />
+              <div id="hist-item-list" class="autocomplete-results"></div>
             </div>
-            <select id="hist-city" class="select">
-              <option>Bridgewatch</option><option>Caerleon</option><option>Fort Sterling</option>
-              <option>Lymhurst</option><option>Martlock</option><option>Thetford</option>
-            </select>
-            <input id="hist-days" class="input w60" type="number" min="1" max="30" value="14" />
-            <button id="hist-fetch" class="btn-primary">Fetch</button>
           </div>
+          <div class="input-group">
+            <label>Sell City</label>
+            <select id="hist-city">
+              <option value="BlackMarket">Black Market</option>
+              <option value="Caerleon">Caerleon</option>
+              <option value="Bridgewatch">Bridgewatch</option>
+              <option value="Lymhurst">Lymhurst</option>
+              <option value="Martlock" selected>Martlock</option>
+              <option value="Thetford">Thetford</option>
+              <option value="FortSterling">Fort Sterling</option>
+            </select>
+          </div>
+          <div class="input-group">
+            <label>Material Source</label>
+            <select id="buy-city">
+              <option value="Martlock" selected>Martlock</option>
+              <option value="Caerleon">Caerleon</option>
+              <option value="Bridgewatch">Bridgewatch</option>
+              <option value="Lymhurst">Lymhurst</option>
+              <option value="Thetford">Thetford</option>
+              <option value="FortSterling">Fort Sterling</option>
+            </select>
+          </div>
+          <div class="input-group">
+            <label>Days</label>
+            <input type="number" id="hist-days" value="14" min="1" max="90" />
+          </div>
+          <button id="hist-fetch" class="btn-primary">Analyze Trade</button>
+        </div>
           <div id="hist-error" class="error-msg"></div>
           <div class="hist-wrap">
             <div id="hist-placeholder">Fetch history to render chart</div>

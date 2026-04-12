@@ -10,7 +10,6 @@ use sqlx::SqlitePool;
 use std::{net::SocketAddr, path::PathBuf};
 use tower_http::cors::CorsLayer;
 
-pub mod alchemy;
 pub mod marrow;
 pub mod seance;
 pub mod settings;
@@ -26,7 +25,6 @@ pub mod wraith;
 pub struct AppState {
     pub db: SqlitePool,
     pub settings_path: PathBuf,
-    pub http: reqwest::Client,
     pub albion_server: crate::settings::AlbionServer,
     pub app_handle: tauri::AppHandle,
 
@@ -44,14 +42,9 @@ impl AppState {
         return_rate_pct: f64,
         crafting_fee_pct: f64,
     ) -> Self {
-        let http = reqwest::Client::builder()
-            .timeout(std::time::Duration::from_secs(10))
-            .build()
-            .expect("failed to create reqwest client");
         Self {
             db,
             settings_path,
-            http,
             albion_server,
             app_handle,
             return_rate_pct,
@@ -107,41 +100,14 @@ impl From<crate::modules::seance::SeanceError> for ApiError {
     }
 }
 
-impl From<crate::modules::marrow::MarrowError> for ApiError {
-    fn from(err: crate::modules::marrow::MarrowError) -> Self {
-        use crate::modules::marrow::MarrowError::*;
-        let status = match &err {
-            NotFound => axum::http::StatusCode::NOT_FOUND,
-            InvalidDateRange => axum::http::StatusCode::BAD_REQUEST,
-            Api(_) => axum::http::StatusCode::BAD_GATEWAY,
-            Json(_) => axum::http::StatusCode::INTERNAL_SERVER_ERROR,
-            Sqlx(_) => axum::http::StatusCode::INTERNAL_SERVER_ERROR,
-        };
-        eprintln!("marrow error: status={} detail={}", status, err);
-        ApiError::new(status, err.to_string())
-    }
-}
-
-impl From<crate::modules::alchemy::AlchemyError> for ApiError {
-    fn from(err: crate::modules::alchemy::AlchemyError) -> Self {
-        use crate::modules::alchemy::AlchemyError::*;
-        match err {
-            MissingMaterials | MissingPrice => {
-                ApiError::new(axum::http::StatusCode::BAD_REQUEST, err.to_string())
-            }
-            Marrow(_) => ApiError::new(axum::http::StatusCode::BAD_GATEWAY, err.to_string()),
-            Sqlx(_) => ApiError::new(axum::http::StatusCode::INTERNAL_SERVER_ERROR, err.to_string()),
-        }
-    }
-}
+// Redacted: Marrow & Alchemy error handlers removed
 
 pub async fn serve(state: AppState) -> Result<(), std::io::Error> {
     let app = Router::new()
         .route("/api/v1/health", get(health))
         .nest("/api/v1/settings", settings::router())
-        .nest("/api/v1/seance", seance::router())
         .nest("/api/v1/marrow", marrow::router())
-        .nest("/api/v1/alchemy",     alchemy::router())
+        .nest("/api/v1/seance", seance::router())
         .nest("/api/v1/chronicle",   chronicle::router())
         .nest("/api/v1/effigy",      effigy::router())
         .nest("/api/v1/hemorrhage",  hemorrhage::router())

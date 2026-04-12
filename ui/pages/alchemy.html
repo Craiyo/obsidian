@@ -5,6 +5,31 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Obsidian — Alchemy</title>
   <link rel="stylesheet" href="../styles/main.css" />
+  <style>
+    .workbench-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 12px; }
+    .workbench-result { grid-column: span 2; }
+    .card h3 { margin-bottom: 12px; font-size: 13px; color: var(--accent-2); }
+    .field-row { display: flex; gap: 10px; margin-bottom: 12px; align-items: flex-end; }
+    .field-row .field { flex: 1; }
+    .materials-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+    .materials-table td { padding: 6px 4px; border-bottom: 1px solid var(--border); }
+    .profit-pill { display: inline-block; padding: 4px 12px; border-radius: 999px; font-weight: 600; font-size: 18px; }
+    .profit-pill.positive { background: rgba(34, 197, 94, 0.15); color: #22c55e; }
+    .profit-pill.negative { background: rgba(239, 68, 68, 0.15); color: #ef4444; }
+    /* Reused from marrow */
+    .combo-wrap { position: relative; }
+    .combo-label { display: block; font-size: 11px; color: var(--muted); margin-top: 4px; min-height: 14px; }
+    .combo-menu { position: absolute; top: 100%; left: 0; right: 0; z-index: 20; background: var(--panel-2); border: 1px solid var(--border); border-radius: 8px; margin-top: 6px; max-height: 240px; overflow: auto; box-shadow: var(--shadow); }
+    .search-row { display: flex; align-items: center; gap: 10px; padding: 6px 8px; border-radius: 6px; cursor: pointer; }
+    .search-row:hover { background: rgba(127, 86, 217, 0.1); }
+    .search-row.active { background: rgba(127, 86, 217, 0.2); }
+    .tier-badge { font-size: 10px; font-weight: 600; color: var(--accent); background: rgba(127, 86, 217, 0.15); padding: 2px 5px; border-radius: 3px; }
+    .item-name { font-size: 13px; flex: 1; }
+    #alchemy-result-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-top: 16px; }
+    .stat-box { background: var(--panel); padding: 12px; border-radius: 8px; border: 1px solid var(--border); }
+    .stat-label { font-size: 10px; color: var(--muted); text-transform: uppercase; margin-bottom: 4px; }
+    .stat-value { font-size: 16px; font-weight: 600; }
+  </style>
 </head>
 <body data-page="alchemy">
   <div class="app">
@@ -32,25 +57,92 @@
         <h1>Alchemy</h1>
         <span class="badge">v1.0</span>
       </div>
-      <section class="section"><h2>Profit Calculator</h2><div class="form-grid">
-  <div class="field"><label>Item ID</label><input id="alchemy-item-id" type="text" placeholder="T4_BAG" /></div>
-  <div class="field"><label>City</label><input id="alchemy-city" type="text" value="Bridgewatch" /></div>
-  <div class="field"><label>Return Rate %</label><input id="alchemy-return-rate" type="number" value="15" /></div>
-  <div class="field"><label>Crafting Fee %</label><input id="alchemy-fee" type="number" value="6" /></div>
-  <div class="field"><label>Bonus %</label><input id="alchemy-bonus" type="number" value="0" /></div>
-  <div class="field"><label>Materials (item, qty, unit cost optional)</label><textarea id="alchemy-materials" rows="4" placeholder="T4_METALBAR,16
-T4_LEATHER,8"></textarea></div>
-</div>
-<div style="margin-top:10px"><button id="alchemy-calc" class="btn">Calculate</button></div>
-<pre id="alchemy-output" class="card"></pre></section>
-<section class="section"><h2>Save Scenario</h2><div class="form-grid">
-  <div class="field"><label>Name</label><input id="alchemy-scenario-name" type="text" placeholder="Bridgewatch Bags" /></div>
-</div>
-<div style="margin-top:10px"><button id="alchemy-save" class="btn">Save Scenario</button> <button id="alchemy-refresh" class="btn">Refresh Scenarios</button></div>
-<pre id="alchemy-scenarios-output" class="card"></pre></section>
-      <div class="footer">Obsidian UI — undead ritual v1 draft</div>
+      <section class="section">
+        <div class="section-head">
+          <h2>Alchemy Workbench</h2>
+          <div id="gold-pill" class="gold-pill skeleton"><span class="gold-dot"></span><span>Gold: loading...</span></div>
+        </div>
+        <div class="workbench-grid">
+          <div class="workbench-controls card">
+            <h3>Recipe Selection</h3>
+            <div class="field">
+              <label>Select Item to Craft</label>
+              <div class="combo-wrap">
+                <input id="alchemy-item-id" class="input" type="text" placeholder="e.g. Poison Potion" autocomplete="off" />
+                <span id="alchemy-item-label" class="combo-label"></span>
+              </div>
+            </div>
+            <div class="row">
+            <div class="input-group">
+              <label>CITY (SELL DESTINATION)</label>
+              <select id="alchemy-city">
+                <option value="BlackMarket">Black Market</option>
+                <option value="Caerleon">Caerleon</option>
+                <option value="Bridgewatch">Bridgewatch</option>
+                <option value="Lymhurst">Lymhurst</option>
+                <option value="Martlock">Martlock</option>
+                <option value="Thetford">Thetford</option>
+                <option value="FortSterling">Fort Sterling</option>
+              </select>
+            </div>
+            <div class="input-group">
+              <label>MATERIAL SOURCE</label>
+              <select id="alchemy-buy-city">
+                <option value="Martlock" selected>Martlock</option>
+                <option value="Caerleon">Caerleon</option>
+                <option value="Bridgewatch">Bridgewatch</option>
+                <option value="Lymhurst">Lymhurst</option>
+                <option value="Thetford">Thetford</option>
+                <option value="FortSterling">Fort Sterling</option>
+              </select>
+            </div>
+            <div class="input-group">
+              <label>BATCH SIZE</label>
+              <input type="number" id="alchemy-batch" value="20" min="1" />
+            </div>
+          </div>
+
+          <div class="row">
+            <div class="input-group">
+              <label>RETURN RATE %</label>
+              <input type="number" id="alchemy-return-rate" value="15.2" step="0.1" />
+            </div>
+            <div class="input-group">
+              <label>FEE %</label>
+              <input type="number" id="alchemy-fee" value="0" min="0" step="0.1" />
+            </div>
+          </div>
+ <div style="margin-top:16px"><button id="alchemy-calc" class="btn-primary">Calculate Profit</button></div>
+          </div>
+
+          <div class="workbench-materials card">
+            <h3>Materials Required</h3>
+            <div id="materials-list" class="muted">Select a recipe to view materials</div>
+          </div>
+
+          <div class="workbench-result card">
+            <h3>Profit Analysis</h3>
+            <div id="alchemy-result" class="muted">Run calculation to see results</div>
+          </div>
+        </div>
+      </section>
+
+      <section class="section">
+        <div class="section-head"><h2>Saved Scenarios</h2></div>
+        <div class="section-body">
+          <div class="field-row">
+            <input id="alchemy-scenario-name" class="input" type="text" placeholder="Scenario Name" />
+            <button id="alchemy-save" class="btn-primary">Save</button>
+            <button id="alchemy-refresh" class="btn-primary">Refresh</button>
+          </div>
+          <div id="alchemy-scenarios-output" class="muted" style="margin-top:12px">No saved scenarios</div>
+        </div>
+      </section>
+
+      <div class="footer">Obsidian UI — Crafting Analytics v1</div>
     </main>
   </div>
   <script src="../app.js"></script>
+  <script src="../alchemy.js"></script>
 </body>
 </html>

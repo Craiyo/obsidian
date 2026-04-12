@@ -296,9 +296,36 @@
       const diffStr = d.price_diff_pct != null ? ` <span style="font-size: 0.8em; font-weight: normal; color: ${d.price_diff_pct > 50 ? '#dc2626' : '#6b7280'}">(${d.price_diff_pct > 0 ? '+' : ''}${d.price_diff_pct.toFixed(0)}%)</span>` : "";
       const priceColor = (d.price_diff_pct > 150) ? "#b91c1c" : (d.price_diff_pct > 50) ? "#b45309" : "#166534";
 
+      let craftingSection = "";
+      if (d.is_craftable) {
+        const marginCls = d.crafting_margin_pct > 15 ? "green" : d.crafting_margin_pct > 0 ? "blue" : "red";
+        const rows = d.crafting_materials.map(m => `
+          <tr>
+            <td style="color:#666">${m.display_name}</td>
+            <td style="text-align:right">x${m.quantity}</td>
+            <td style="text-align:right">${m.unit_price.toLocaleString()} s</td>
+          </tr>
+        `).join("");
+
+        craftingSection = `
+          <div class="verdict-stat" style="grid-column: span 2; margin-top: 8px; border-top: 1px dashed #e5e7eb; padding-top: 12px;">
+            <div class="verdict-stat-label">Crafting Analysis (Batch)</div>
+            <div class="verdict-stat-value" style="color:${d.crafting_margin_pct > 0 ? '#166534' : '#b91c1c'}">
+              ${d.crafting_profit ? d.crafting_profit.toLocaleString() : '—'} s profit
+              <span style="font-size:0.8em; font-weight:normal">(${d.crafting_margin_pct}% margin)</span>
+            </div>
+            <div class="verdict-materials">
+              <table>
+                ${rows}
+              </table>
+            </div>
+          </div>
+        `;
+      }
+
       verdict.innerHTML = `
         <div class="${cls}">
-          <div class="verdict-title">${icon} ${d.recommended ? `TRADE OP (Q${d.quality})` : "SKIP"} <span style="font-size:0.75em;font-weight:normal;opacity:0.7;margin-left:8px">Score: ${confDisp}%</span></div>
+          <div class="verdict-title">${icon} ${d.recommended ? `OPPORTUNITY (Q${d.quality})` : "SKIP"} <span style="font-size:0.75em;font-weight:normal;opacity:0.7;margin-left:8px">Score: ${confDisp}%</span></div>
           <div class="verdict-reason" style="margin-bottom: 8px;">${d.reason}</div>
           ${staleWarning}
           ${historyStaleWarning}
@@ -329,10 +356,7 @@
               <div class="verdict-stat-label">Volatility</div>
               <div class="verdict-stat-value">${d.price_volatility_pct !== null ? d.price_volatility_pct.toFixed(1) + '%' : "—"}</div>
             </div>
-            <div class="verdict-stat">
-              <div class="verdict-stat-label">Best Market</div>
-              <div class="verdict-stat-value" style="color: #6B46C1">${d.best_sell_city || "—"}</div>
-            </div>
+            ${craftingSection}
           </div>
         </div>
       `;
@@ -590,11 +614,13 @@
       const { listen } = window.__TAURI__.event;
       listen("marrow-ingest", (event) => {
         const itemIds = event.payload;
-        const currentId = $("price-item").value.trim();
+        const currentItem = comboState["price-item"]?.uniquename;
         
-        if (currentId && itemIds.includes(currentId)) {
-          console.log("[marrow-direct] Live update detected for", currentId);
-          fetchRecommendation();
+        if (currentItem && itemIds.includes(currentItem)) {
+          console.log("[marrow-direct] Live update detected for", currentItem);
+          const city = $("price-city").value;
+          const days = $("hist-days").value;
+          fetchRecommendation(currentItem, city, days);
         }
       });
     }
