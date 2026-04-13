@@ -63,6 +63,7 @@ async function initSettings() {
     const settings = await apiRequest("/api/v1/settings");
     $("settings-language").value = settings.language || "";
     $("settings-theme").value = settings.theme || "";
+    $("settings-server").value = settings.albion_server || 'asia';
     // Render account profiles
     const grid = $("accounts-grid");
     grid.innerHTML = '';
@@ -74,6 +75,7 @@ async function initSettings() {
       card.innerHTML = `
         <h3>Account ${i+1}</h3>
         <div class="field"><label>Name</label><input class="acc-name" data-idx="${i}" value="${acc.name}" /></div>
+        <div class="field"><label>Crafting lines (one per line)</label><textarea class="acc-lines" data-idx="${i}" rows="5">${(acc.crafting_lines || []).map(l => l).join('\n')}</textarea></div>
         <div class="field"><label>City</label><input class="acc-city" data-idx="${i}" value="${acc.city}" /></div>
         <div class="field"><label>Focus</label><input type="checkbox" class="acc-focus" data-idx="${i}" ${acc.use_focus ? 'checked' : ''} /></div>
         <div class="field"><label>Crafting fee (%)</label><input class="acc-fee" data-idx="${i}" type="number" value="${acc.crafting_fee_pct}" /></div>
@@ -91,15 +93,15 @@ async function initSettings() {
       const city = card.querySelector('.acc-city').value;
       const use_focus = card.querySelector('.acc-focus').checked;
       const crafting_fee_pct = Number(card.querySelector('.acc-fee').value || 3);
-      accounts.push({ name, city, crafting_lines: [], use_focus, crafting_fee_pct });
+      const linesText = card.querySelector('.acc-lines').value || '';
+      const crafting_lines = linesText.split('\n').map(s => s.trim()).filter(Boolean);
+      accounts.push({ name, city, crafting_lines, use_focus, crafting_fee_pct });
     });
 
     const payload = {
       language: $("settings-language").value,
       theme: $("settings-theme").value,
       albion_server: $("settings-server").value || 'asia',
-      seance_party_size: Number($("settings-party-size").value || 10),
-      seance_split_type: $("settings-split-type").value || 'equal',
       accounts,
     };
 

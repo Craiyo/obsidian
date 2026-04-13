@@ -179,8 +179,6 @@ pub struct Settings {
     pub language: String,
     pub theme: String,
     pub albion_server: AlbionServer,
-    pub seance_party_size: i64,
-    pub seance_split_type: String,
     /// Up to 3 account profiles
     pub accounts: Vec<AccountProfile>,
 }
@@ -191,8 +189,6 @@ impl Default for Settings {
             language: "English".to_string(),
             theme: "Undead Ritual".to_string(),
             albion_server: AlbionServer::default(),
-            seance_party_size: 10,
-            seance_split_type: "equal".to_string(),
             accounts: vec![
                 AccountProfile {
                     name: "Warrior".to_string(),
