@@ -90,9 +90,27 @@ pub async fn plan_session(pool: &SqlitePool, account: &crate::settings::AccountP
 
     let mut tx = pool.begin().await?;
 
+    // Determine best session city by counting recommended best_city across requested items
+    let mut city_counts: std::collections::HashMap<String, i64> = std::collections::HashMap::new();
+    for it in &items {
+        if let Some(row) = sqlx::query("SELECT shopcategory FROM items WHERE uniquename = ?")
+            .bind(&it.uniquename)
+            .fetch_optional(&mut *tx)
+            .await?
+        {
+            if let Some(sc) = row.try_get::<Option<String>, _>("shopcategory")? {
+                if let Some(cat) = crate::settings::shopcategory_to_item_category(&sc) {
+                    let city = crate::settings::bonus_city_for(&cat).to_string();
+                    *city_counts.entry(city).or_insert(0) += 1;
+                }
+            }
+        }
+    }
+    let session_city = city_counts.into_iter().max_by_key(|(_, c)| *c).map(|(k, _)| k).unwrap_or_else(|| String::new());
+
     let res = sqlx::query("INSERT INTO alchemy_sessions (account_name, city, use_focus, rrr, created_at, sent_to_marrow) VALUES (?, ?, ?, ?, ?, 0)")
         .bind(&account.name)
-        .bind("")
+        .bind(&session_city)
         .bind(if account.use_focus { 1 } else { 0 })
         .bind(session_rrr)
         .bind(now)
