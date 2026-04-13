@@ -11,7 +11,8 @@
   },
   "tauri": {
     "allowlist": {
-      "http": { "all": true }
+      "http": { "all": true },
+      "dialog": { "open": true, "save": true, "message": true, "ask": true }
     },
     "security": {
       "csp": "default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self' https://cdnjs.cloudflare.com; connect-src http://127.0.0.1:* http://localhost:*"
