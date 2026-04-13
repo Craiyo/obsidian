@@ -25,7 +25,8 @@ CREATE TABLE IF NOT EXISTS alchemy_session_materials (
     display_name    TEXT    NOT NULL,
     quantity_needed INTEGER NOT NULL,
     unit_price      INTEGER,
-    total_cost      REAL
+    total_cost      REAL,
+    UNIQUE(session_id, uniquename)
 );
 
 CREATE INDEX IF NOT EXISTS idx_alchemy_sessions_created

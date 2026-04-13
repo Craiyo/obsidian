@@ -129,7 +129,8 @@ impl AccountProfile {
     /// Focus: adds enough to reach ~77% no-bonus or ~106% with-bonus.
     pub fn production_bonus_pct(&self, has_city_bonus: bool) -> f64 {
         let base = 18.0;
-        let city_bonus = if has_city_bonus { 29.0 } else { 0.0 };
+        // City bonus is +15% (specialization), not +29%
+        let city_bonus = if has_city_bonus { 15.0 } else { 0.0 };
         let focus_bonus = if self.use_focus { 59.0 } else { 0.0 };
         base + city_bonus + focus_bonus
     }
@@ -142,7 +143,12 @@ impl AccountProfile {
     }
 
     /// Materials to buy for a desired output quantity.
-    /// to_buy = ceil(quantity_out / craft_amount) * materials_per_run * (1 - RRR)
+    /// Returns the raw materials required for all craft runs (what you need to *buy*).
+    ///
+    /// Calculation:
+    ///   craft_runs = ceil(quantity_out / craft_amount)
+    ///   raw_needed = craft_runs * materials_per_run
+    /// The caller can compute net consumed as raw_needed * (1 - RRR).
     pub fn materials_to_buy(
         &self,
         quantity_out: i64,
@@ -152,8 +158,7 @@ impl AccountProfile {
     ) -> i64 {
         let runs = (quantity_out as f64 / craft_amount as f64).ceil() as i64;
         let raw_needed = runs * materials_per_run;
-        let rrr = self.rrr(has_city_bonus);
-        (raw_needed as f64 * (1.0 - rrr)).ceil() as i64
+        raw_needed
     }
 }
 
