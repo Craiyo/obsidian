@@ -1,6 +1,10 @@
 use serde::{Deserialize, Serialize};
 use crate::modules::alchemy::AlchemyError;
 use sqlx::SqlitePool;
+use sqlx::Row;
+use chrono::Utc;
+use serde_json::Value;
+use std::collections::HashMap;
 
 #[derive(Debug, Deserialize)]
 pub struct PlanItem {
@@ -17,7 +21,10 @@ pub struct PlanRequest {
 #[derive(Debug, Serialize)]
 pub struct SessionItem {
     pub uniquename: String,
+    pub display_name: String,
+    pub quantity_out: i64,
     pub craft_amount: i64,
+    pub runs_needed: i64,
 }
 
 #[derive(Debug, Serialize)]
@@ -53,35 +60,241 @@ pub struct SetPriceRequest {
     pub unit_price: i64,
 }
 
-// Lightweight stubs so API layer compiles. These should be replaced by full implementations later.
+// Lightweight DB-backed implementations for Alchemy sessions.
+// These are still minimal: materials are not auto-derived from item recipes yet,
+// but sessions/items/materials are persisted to the alchemy_sessions* tables.
 
-pub async fn plan_session(_pool: &SqlitePool, account: &crate::settings::AccountProfile, items: Vec<PlanItem>) -> Result<PlanResponse, AlchemyError> {
-    // Create a minimal PlanResponse using inputs; do not persist.
-    let session_id = 0;
-    let session_items = items.into_iter().map(|i| SessionItem { uniquename: i.uniquename, craft_amount: i.quantity_out }).collect();
+
+pub async fn plan_session(pool: &SqlitePool, account: &crate::settings::AccountProfile, items: Vec<PlanItem>) -> Result<PlanResponse, AlchemyError> {
+    // Heuristic: if the account has any crafting lines configured, assume city bonus applies
+    let has_city_bonus = !account.crafting_lines.is_empty();
+    let rrr = account.rrr(has_city_bonus);
+    let now = chrono::Utc::now().timestamp();
+
+    let mut tx = pool.begin().await?;
+
+    let res = sqlx::query("INSERT INTO alchemy_sessions (account_name, city, use_focus, rrr, created_at, sent_to_marrow) VALUES (?, ?, ?, ?, ?, 0)")
+        .bind(&account.name)
+        .bind(&account.city)
+        .bind(if account.use_focus { 1 } else { 0 })
+        .bind(rrr)
+        .bind(now)
+        .execute(&mut *tx)
+        .await?;
+
+    let session_id = res.last_insert_rowid();
+
+    let mut session_items = Vec::new();
+    // For each requested item, persist the item row and attempt to derive its recipe from the items table
+    for it in items.into_iter() {
+        // Default craft amount; may be overridden by database recipe
+        let mut craft_amount = 1i64;
+        let runs_needed = it.quantity_out;
+        let display_name = it.uniquename.clone();
+
+        // Insert session item
+        sqlx::query("INSERT INTO alchemy_session_items (session_id, uniquename, display_name, quantity_out, craft_amount, runs_needed) VALUES (?, ?, ?, ?, ?, ?)")
+            .bind(session_id)
+            .bind(&it.uniquename)
+            .bind(&display_name)
+            .bind(it.quantity_out)
+            .bind(craft_amount)
+            .bind(runs_needed)
+            .execute(&mut *tx)
+            .await?;
+
+        // Try to derive materials from items.craft_resources or alchemy_recipes.recipe_json
+        let mut derived_materials: Vec<(String, i64)> = Vec::new();
+
+        // First, try items table
+        if let Some(row) = sqlx::query("SELECT display_name, craft_amount, craft_resources FROM items WHERE uniquename = ?")
+            .bind(&it.uniquename)
+            .fetch_optional(&mut *tx)
+            .await?
+        {
+            if let Some(dn) = row.try_get::<Option<String>, _>("display_name")? {
+                // override display name
+                // (we don't update the session_items.display_name here)
+                let _ = dn;
+            }
+            craft_amount = row.get::<i64, _>("craft_amount");
+            if let Some(cr_json) = row.try_get::<Option<String>, _>("craft_resources")? {
+                if let Ok(val) = serde_json::from_str::<Value>(&cr_json) {
+                    if let Some(arr) = val.as_array() {
+                        for entry in arr {
+                            if let Some(un) = entry.get("uniquename").and_then(Value::as_str) {
+                                let count = entry.get("count").and_then(Value::as_i64).unwrap_or(1);
+                                derived_materials.push((un.to_string(), count));
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // Fallback to alchemy_recipes table if no derived materials
+        if derived_materials.is_empty() {
+            if let Some(row) = sqlx::query("SELECT recipe_json FROM alchemy_recipes WHERE item_id = ?")
+                .bind(&it.uniquename)
+                .fetch_optional(&mut *tx)
+                .await?
+            {
+                if let Some(recipe_json) = row.try_get::<Option<String>, _>("recipe_json")? {
+                    if let Ok(val) = serde_json::from_str::<Value>(&recipe_json) {
+                        if let Some(a) = val.get("amount").and_then(Value::as_i64) {
+                            craft_amount = a;
+                        }
+                        if let Some(arr) = val.get("materials").and_then(Value::as_array) {
+                            for entry in arr {
+                                if let Some(un) = entry.get("uniquename").and_then(Value::as_str) {
+                                    let count = entry.get("count").and_then(Value::as_i64).unwrap_or(1);
+                                    derived_materials.push((un.to_string(), count));
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // Persist derived materials into alchemy_session_materials
+        for (mat_id, mat_count) in derived_materials.into_iter() {
+            // compute quantity_needed using account profile RRR logic
+            let qty_needed = account.materials_to_buy(it.quantity_out, craft_amount, mat_count, has_city_bonus);
+            let display_name = mat_id.clone();
+            sqlx::query("INSERT INTO alchemy_session_materials (session_id, uniquename, display_name, quantity_needed, unit_price, total_cost) VALUES (?, ?, ?, ?, NULL, NULL)")
+                .bind(session_id)
+                .bind(&mat_id)
+                .bind(&display_name)
+                .bind(qty_needed)
+                .execute(&mut *tx)
+                .await?;
+        }
+
+        session_items.push(SessionItem { 
+            uniquename: it.uniquename.clone(), 
+            display_name: display_name.clone(),
+            quantity_out: it.quantity_out,
+            craft_amount,
+            runs_needed,
+        });
+    }
+
+    tx.commit().await?;
+
+    // Load materials to include in response
+    let material_rows = sqlx::query("SELECT uniquename, display_name, quantity_needed, unit_price, total_cost FROM alchemy_session_materials WHERE session_id = ?")
+        .bind(session_id)
+        .fetch_all(pool)
+        .await?;
+
+    let mut materials_out = Vec::new();
+    for r in material_rows {
+        materials_out.push(MaterialRow {
+            uniquename: r.get("uniquename"),
+            display_name: r.get("display_name"),
+            quantity_needed: r.get("quantity_needed"),
+            unit_price: r.get::<Option<i64>, _>("unit_price"),
+            total_cost: r.get::<Option<f64>, _>("total_cost"),
+        });
+    }
+
     Ok(PlanResponse {
         session_id,
         items: session_items,
-        materials: vec![],
+        materials: materials_out,
         account_name: account.name.clone(),
         city: account.city.clone(),
-        rrr_pct: 0.0,
+        rrr_pct: rrr,
         use_focus: account.use_focus,
     })
 }
 
-pub async fn list_sessions(_pool: &SqlitePool, _limit: i64) -> Result<Vec<SessionSummary>, AlchemyError> {
-    Ok(vec![])
+pub async fn list_sessions(pool: &SqlitePool, limit: i64) -> Result<Vec<SessionSummary>, AlchemyError> {
+    let rows = sqlx::query("SELECT id, account_name, created_at FROM alchemy_sessions ORDER BY created_at DESC LIMIT ?")
+        .bind(limit)
+        .fetch_all(pool)
+        .await?;
+
+    let summaries = rows.into_iter().map(|r| SessionSummary {
+        session_id: r.get("id"),
+        account_name: r.get("account_name"),
+        created_at: r.get("created_at"),
+    }).collect();
+
+    Ok(summaries)
 }
 
-pub async fn load_session(_pool: &SqlitePool, id: i64) -> Result<PlanResponse, AlchemyError> {
-    Ok(PlanResponse { session_id: id, items: vec![], materials: vec![], account_name: String::new(), city: String::new(), rrr_pct: 0.0, use_focus:false })
+pub async fn load_session(pool: &SqlitePool, id: i64) -> Result<PlanResponse, AlchemyError> {
+    let row = sqlx::query("SELECT account_name, city, use_focus, rrr FROM alchemy_sessions WHERE id = ?")
+        .bind(id)
+        .fetch_one(pool)
+        .await?;
+
+    let account_name: String = row.get("account_name");
+    let city: String = row.get("city");
+    let use_focus_i: i64 = row.get("use_focus");
+    let use_focus = use_focus_i != 0;
+    let rrr: f64 = row.get("rrr");
+
+    let item_rows = sqlx::query("SELECT uniquename, display_name, quantity_out, craft_amount, runs_needed FROM alchemy_session_items WHERE session_id = ?")
+        .bind(id)
+        .fetch_all(pool)
+        .await?;
+
+    let mut items = Vec::new();
+    for r in item_rows {
+        let uniquename: String = r.get("uniquename");
+        let display_name: String = r.get("display_name");
+        let quantity_out: i64 = r.get("quantity_out");
+        let craft_amount: i64 = r.get("craft_amount");
+        let runs_needed: i64 = r.get("runs_needed");
+        items.push(SessionItem { uniquename, display_name, quantity_out, craft_amount, runs_needed });
+    }
+
+    let material_rows = sqlx::query("SELECT uniquename, display_name, quantity_needed, unit_price, total_cost FROM alchemy_session_materials WHERE session_id = ?")
+        .bind(id)
+        .fetch_all(pool)
+        .await?;
+
+    let mut materials = Vec::new();
+    for r in material_rows {
+        materials.push(MaterialRow {
+            uniquename: r.get("uniquename"),
+            display_name: r.get("display_name"),
+            quantity_needed: r.get("quantity_needed"),
+            unit_price: r.get::<Option<i64>, _>("unit_price"),
+            total_cost: r.get::<Option<f64>, _>("total_cost"),
+        });
+    }
+
+    Ok(PlanResponse {
+        session_id: id,
+        items,
+        materials,
+        account_name,
+        city,
+        rrr_pct: rrr,
+        use_focus,
+    })
 }
 
-pub async fn set_material_price(_pool: &SqlitePool, _session_id: i64, _uniquename: &str, _unit_price: i64) -> Result<(), AlchemyError> {
+pub async fn set_material_price(pool: &SqlitePool, session_id: i64, uniquename: &str, unit_price: i64) -> Result<(), AlchemyError> {
+    // Update unit_price and total_cost = unit_price * quantity_needed
+    sqlx::query("UPDATE alchemy_session_materials SET unit_price = ?, total_cost = (quantity_needed * ?) WHERE session_id = ? AND uniquename = ?")
+        .bind(unit_price)
+        .bind(unit_price as f64)
+        .bind(session_id)
+        .bind(uniquename)
+        .execute(pool)
+        .await?;
     Ok(())
 }
 
-pub async fn mark_sent_to_marrow(_pool: &SqlitePool, _session_id: i64) -> Result<(), AlchemyError> {
+pub async fn mark_sent_to_marrow(pool: &SqlitePool, session_id: i64) -> Result<(), AlchemyError> {
+    sqlx::query("UPDATE alchemy_sessions SET sent_to_marrow = 1 WHERE id = ?")
+        .bind(session_id)
+        .execute(pool)
+        .await?;
     Ok(())
 }

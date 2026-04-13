@@ -31,7 +31,7 @@
   }
 
   async function fillInputs(uniquename) {
-    // Shared behavior: clicking a favourite fills both price and history item IDs.
+    // Shared behavior: clicking a favourite fills history item ID.
     // Try to resolve display name via search endpoint; fall back to uniquename.
     let displayName = uniquename;
     try {
@@ -47,7 +47,6 @@
       // ignore
     }
 
-    setComboValue("price-item", uniquename, displayName);
     setComboValue("hist-item", uniquename, displayName);
   }
 
@@ -222,71 +221,69 @@
     }
   }
 
+  // Prefill Marrow UI if navigated from Alchemy
+  async function prefillFromAlchemy() {
+    try {
+      const sid = sessionStorage.getItem('alchemy_session_id');
+      if (!sid) return;
+      const id = Number(sid);
+      if (!id) return;
+
+      const r = await fetch(`${BASE}/api/v1/marrow/session/${id}/receive`);
+      if (!r.ok) throw new Error('Failed to load alchemy session');
+      const s = await r.json();
+
+      // Show panel and badge
+      const panel = $('alchemy-session-panel');
+      panel.style.display = 'block';
+      $('alchemy-session-badge').textContent = `#${s.session_id}`;
+
+      // Fill info bar
+      $('alchemy-info-bar').innerHTML = `
+        <span>Account: <strong>${s.account_name}</strong></span>
+        <span>City: <strong>${s.city}</strong></span>
+        <span>RRR: <strong>${(s.rrr_pct * 100).toFixed(1)}%</strong></span>
+      `;
+
+      // Items
+      const itemsBody = $('alchemy-items-body');
+      itemsBody.innerHTML = s.items.map(it => `
+        <tr>
+          <td style="font-weight:500">${it.uniquename}</td>
+          <td style="text-align:right">${it.craft_amount}</td>
+          <td style="text-align:right">${Math.ceil( (it.craft_amount || 1) / (it.craft_amount || 1) )}</td>
+          <td style="text-align:right"><input class="input sell-price-input" data-item="${it.uniquename}" /></td>
+          <td style="text-align:right" id="rev-${it.uniquename.replace(/@/g,'-')}">—</td>
+        </tr>
+      `).join('');
+
+      // Materials
+      const matsBody = $('alchemy-mats-body');
+      matsBody.innerHTML = s.materials.map(m => `
+        <tr data-uniquename="${m.uniquename}">
+          <td style="font-weight:500">${m.display_name || m.uniquename}</td>
+          <td style="text-align:right">${m.quantity_needed}</td>
+          <td style="text-align:right"><input class="input" type="number" min="0" value="${m.unit_price || ''}" data-uniquename="${m.uniquename}" /></td>
+          <td style="text-align:right" id="mat-${m.uniquename.replace(/@/g,'-')}">${m.total_cost ? Number(m.total_cost).toLocaleString() + ' s' : '—'}</td>
+        </tr>
+      `).join('');
+
+      // Prefill crafting fee
+      $('alchemy-craft-fee').value = s.crafting_fee_pct || 1.5;
+
+      // Wire calculate button to use these values
+      $('alchemy-calc-btn').addEventListener('click', () => calculateAlchemyProfit(s.session_id));
+
+    } catch (e) {
+      // ignore gracefully
+    }
+  }
+
   function setMetric(valueId, dateId, value, dateStr) {
     $(valueId).textContent = value == null ? "—" : Number(value).toLocaleString();
     $(dateId).textContent = dateStr ? String(dateStr).slice(0, 10) : "";
   }
 
-  async function fetchPrice() {
-    const item = comboState["price-item"]?.uniquename || "";
-    const city = $("price-city").value;
-    const btn = $("price-fetch");
-    const source = $("price-source");
-
-    setError("price-error", "");
-    if (!item) {
-      setError("price-error", "Enter an item ID");
-      return;
-    }
-
-    const old = btn.textContent;
-    btn.disabled = true;
-    btn.textContent = "Fetching…";
-
-    try {
-      const fetchPromises = [1, 2, 3, 4, 5].map(q => 
-        fetch(`${BASE}/api/v1/marrow/item/${encodeURIComponent(item)}?city=${encodeURIComponent(city)}&quality=${q}`)
-          .then(res => res.ok ? res.json() : null)
-      );
-      const results = await Promise.all(fetchPromises);
-      
-      const qualityNames = ["Normal", "Good", "Outstanding", "Excellent", "Masterpiece"];
-      const colors = ["#9ca3af", "#22c55e", "#3b82f6", "#a855f7", "#eab308"];
-      
-      const out = document.getElementById("price-output");
-      out.style.display = "block";
-      
-      let tableRows = results.map((d, i) => {
-        if (!d || !d.sell_price_min) return "";
-        let sellPrice = d.sell_price_min ? d.sell_price_min.toLocaleString() : "—";
-        let buyPrice = d.buy_price_max ? d.buy_price_max.toLocaleString() : "—";
-        return `
-          <tr style="border-bottom:1px solid #f3f4f6">
-            <td style="padding:8px 0; font-weight:bold; color: ${colors[i]}">Q${i+1} ${qualityNames[i]}</td>
-            <td style="text-align:right;color:#166534;">${sellPrice}</td>
-            <td style="text-align:right;color:#991b1b;">${buyPrice}</td>
-          </tr>
-        `;
-      }).join("");
-
-      out.innerHTML = `
-        <table style="width:100%; border-collapse:collapse;">
-          <tr style="border-bottom:1px solid #e5e7eb">
-            <th style="text-align:left;padding:8px 0">Quality</th>
-            <th style="text-align:right;padding:8px 0">Sell (Min)</th>
-            <th style="text-align:right;padding:8px 0">Buy (Max)</th>
-          </tr>
-          ${tableRows}
-        </table>
-      `;
-      source.style.display = "none";
-    } catch (err) {
-      setError("price-error", err?.message || "Network error");
-    } finally {
-      btn.disabled = false;
-      btn.textContent = old;
-    }
-  }
 
   async function fetchRecommendation(item, city, days) {
     const panel = $("recommend-panel");
@@ -612,13 +609,11 @@
   }
 
   document.addEventListener("DOMContentLoaded", () => {
-    $("price-fetch").addEventListener("click", fetchPrice);
     $("hist-fetch").addEventListener("click", fetchHistory);
     $("fav-add").addEventListener("click", addFavourite);
-    makeAutocomplete("price-item", () => {});
     makeAutocomplete("hist-item", () => {});
     document.addEventListener("click", (e) => {
-      ["price-item", "hist-item"].forEach((id) => {
+      ["hist-item"].forEach((id) => {
         const state = comboState[id];
         if (!state) return;
         if (!state.input.closest(".combo-wrap").contains(e.target)) {
@@ -782,11 +777,32 @@
   async function loadAlchemySessionIfPending() {
     const sessionId = sessionStorage.getItem("alchemy_session_id");
     if (!sessionId) return;
+    const id = Number(sessionId);
+    if (!id) return;
     try {
-      const r = await fetch(`${BASE}/api/v1/alchemy/sessions/${sessionId}`);
+      // Prefer marrow's receive endpoint which returns the session payload
+      const r = await fetch(`${BASE}/api/v1/marrow/session/${id}/receive`);
       if (!r.ok) return;
-      renderAlchemySession(await r.json());
-    } catch { /* server may not be up yet — silently ignore */ }
+      const session = await r.json();
+      renderAlchemySession(session);
+
+      // Try to fetch settings to prefill crafting fee from the account profile
+      try {
+        const s = await fetch(`${BASE}/api/v1/settings`);
+        if (s.ok) {
+          const settings = await s.json();
+          const account = (settings.accounts || []).find(a => a.name === session.account_name) || (settings.accounts || [])[0];
+          if (account && account.crafting_fee_pct != null) {
+            $("alchemy-craft-fee").value = account.crafting_fee_pct;
+          }
+        }
+      } catch (e) {
+        // ignore
+      }
+
+    } catch (e) {
+      // server may not be up yet — silently ignore
+    }
   }
 
   document.addEventListener("DOMContentLoaded", () => {

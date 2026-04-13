@@ -27,6 +27,24 @@ pub fn router() -> Router<AppState> {
         .route("/items", get(items))
         .route("/gold", get(gold))
         .route("/recommend/:id", get(recommend_item))
+        .route("/session/:id/receive", get(receive_session))
+}
+
+async fn receive_session(
+    State(state): State<AppState>,
+    Path(id): Path<i64>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    // Load alchemy plan session by id and return materials + items
+    let session = crate::modules::alchemy_api_stubs::load_session(&state.db, id).await.map_err(ApiError::from)?;
+    Ok(Json(serde_json::json!({
+        "session_id": session.session_id,
+        "account_name": session.account_name,
+        "city": session.city,
+        "rrr_pct": session.rrr_pct,
+        "use_focus": session.use_focus,
+        "items": session.items,
+        "materials": session.materials,
+    })))
 }
 
 async fn recommend_item(

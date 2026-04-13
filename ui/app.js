@@ -61,26 +61,46 @@ function parseLines(value) {
 async function initSettings() {
   try {
     const settings = await apiRequest("/api/v1/settings");
-    $("settings-language").value = settings.language;
-    $("settings-theme").value = settings.theme;
-    $("settings-city").value = settings.default_city;
-    $("settings-return-rate").value = settings.return_rate_pct;
-    $("settings-fee").value = settings.crafting_fee_pct;
-    $("settings-party-size").value = settings.seance_party_size;
-    $("settings-split-type").value = settings.seance_split_type;
+    $("settings-language").value = settings.language || "";
+    $("settings-theme").value = settings.theme || "";
+    // Render account profiles
+    const grid = $("accounts-grid");
+    grid.innerHTML = '';
+    const accounts = settings.accounts || [];
+    for (let i = 0; i < 3; i++) {
+      const acc = accounts[i] || { name: `Account ${i+1}`, city: 'Lymhurst', crafting_lines: [], use_focus: false, crafting_fee_pct: 3 };
+      const card = document.createElement('div');
+      card.className = 'account-card';
+      card.innerHTML = `
+        <h3>Account ${i+1}</h3>
+        <div class="field"><label>Name</label><input class="acc-name" data-idx="${i}" value="${acc.name}" /></div>
+        <div class="field"><label>City</label><input class="acc-city" data-idx="${i}" value="${acc.city}" /></div>
+        <div class="field"><label>Focus</label><input type="checkbox" class="acc-focus" data-idx="${i}" ${acc.use_focus ? 'checked' : ''} /></div>
+        <div class="field"><label>Crafting fee (%)</label><input class="acc-fee" data-idx="${i}" type="number" value="${acc.crafting_fee_pct}" /></div>
+      `;
+      grid.appendChild(card);
+    }
   } catch (err) {
     setOutput("settings-output", { error: err.message });
   }
 
   $("settings-save").addEventListener("click", async () => {
+    const accounts = [];
+    document.querySelectorAll('.account-card').forEach((card, idx) => {
+      const name = card.querySelector('.acc-name').value;
+      const city = card.querySelector('.acc-city').value;
+      const use_focus = card.querySelector('.acc-focus').checked;
+      const crafting_fee_pct = Number(card.querySelector('.acc-fee').value || 3);
+      accounts.push({ name, city, crafting_lines: [], use_focus, crafting_fee_pct });
+    });
+
     const payload = {
       language: $("settings-language").value,
       theme: $("settings-theme").value,
-      default_city: $("settings-city").value,
-      return_rate_pct: Number($("settings-return-rate").value || 0),
-      crafting_fee_pct: Number($("settings-fee").value || 0),
-      seance_party_size: Number($("settings-party-size").value || 0),
-      seance_split_type: $("settings-split-type").value,
+      albion_server: $("settings-server").value || 'asia',
+      seance_party_size: Number($("settings-party-size").value || 10),
+      seance_split_type: $("settings-split-type").value || 'equal',
+      accounts,
     };
 
     try {
