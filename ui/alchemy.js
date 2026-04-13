@@ -346,10 +346,11 @@
       input.addEventListener("change", async () => {
         const uniquename = input.dataset.uniquename;
         const price = parseInt(input.value) || 0;
-        if (price <= 0 || !currentSessionId) return;
+        const sid = Number(currentSessionId);
+        if (price <= 0 || !Number.isFinite(sid)) return;
 
         try {
-          await fetch(`${BASE}/api/v1/alchemy/sessions/${currentSessionId}/price`, {
+          await fetch(`${BASE}/api/v1/alchemy/sessions/${sid}/price`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ uniquename, unit_price: price }),
@@ -364,7 +365,7 @@
           if (costCell) costCell.textContent = fmt(total) + " silver";
 
           // Reload full session to get updated total
-          const updated = await fetch(`${BASE}/api/v1/alchemy/sessions/${currentSessionId}`);
+          const updated = await fetch(`${BASE}/api/v1/alchemy/sessions/${sid}`);
           if (updated.ok) {
             const s = await updated.json();
             updateTotalCost(s.materials);
@@ -387,16 +388,17 @@
 
   // ── Send to Marrow ────────────────────────────────────────────────────────
   async function sendToMarrow() {
-    if (!currentSessionId) return;
+    const sid = Number(currentSessionId);
+    if (!Number.isFinite(sid)) return;
     const btn = $("alchemy-send-marrow");
     btn.disabled = true;
     btn.textContent = "Sending…";
     try {
-      const r = await fetch(`${BASE}/api/v1/alchemy/sessions/${currentSessionId}/send`, {
+      const r = await fetch(`${BASE}/api/v1/alchemy/sessions/${sid}/send`, {
         method: "POST",
       });
       if (!r.ok) throw new Error();
-      sessionStorage.setItem("alchemy_session_id", String(currentSessionId));
+      sessionStorage.setItem("alchemy_session_id", String(sid));
       window.location.href = "./marrow.html";
     } catch {
       btn.disabled = false;
@@ -441,7 +443,8 @@
             const r = await fetch(`${BASE}/api/v1/alchemy/sessions/${id}`);
             if (!r.ok) throw new Error();
             const session = await r.json();
-            currentSessionId = session.session_id;
+            // Backwards-compat: accept either session.session_id or session.id
+            currentSessionId = session.session_id != null ? session.session_id : session.id;
             renderShoppingList(session);
           } catch { /* ignore */ }
         });

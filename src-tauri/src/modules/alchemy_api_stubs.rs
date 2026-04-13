@@ -66,9 +66,8 @@ pub struct SetPriceRequest {
 
 
 pub async fn plan_session(pool: &SqlitePool, account: &crate::settings::AccountProfile, items: Vec<PlanItem>) -> Result<PlanResponse, AlchemyError> {
-    // Heuristic: if the account has any crafting lines configured, assume city bonus applies
-    let has_city_bonus = !account.crafting_lines.is_empty();
-    let rrr = account.rrr(has_city_bonus);
+    // Store session-level RRR without assuming a blanket city bonus — per-item bonuses are resolved below
+    let session_rrr = account.rrr(false);
     let now = chrono::Utc::now().timestamp();
 
     let mut tx = pool.begin().await?;
@@ -77,7 +76,7 @@ pub async fn plan_session(pool: &SqlitePool, account: &crate::settings::AccountP
         .bind(&account.name)
         .bind(&account.city)
         .bind(if account.use_focus { 1 } else { 0 })
-        .bind(rrr)
+        .bind(session_rrr)
         .bind(now)
         .execute(&mut *tx)
         .await?;
@@ -105,9 +104,10 @@ pub async fn plan_session(pool: &SqlitePool, account: &crate::settings::AccountP
 
         // Try to derive materials from items.craft_resources or alchemy_recipes.recipe_json
         let mut derived_materials: Vec<(String, i64)> = Vec::new();
+        let mut shopcategory_opt: Option<String> = None;
 
-        // First, try items table
-        if let Some(row) = sqlx::query("SELECT display_name, craft_amount, craft_resources FROM items WHERE uniquename = ?")
+        // First, try items table (include shopcategory)
+        if let Some(row) = sqlx::query("SELECT display_name, craft_amount, craft_resources, shopcategory FROM items WHERE uniquename = ?")
             .bind(&it.uniquename)
             .fetch_optional(&mut *tx)
             .await?
@@ -118,6 +118,7 @@ pub async fn plan_session(pool: &SqlitePool, account: &crate::settings::AccountP
                 let _ = dn;
             }
             craft_amount = row.get::<i64, _>("craft_amount");
+            shopcategory_opt = row.try_get::<Option<String>, _>("shopcategory")?;
             if let Some(cr_json) = row.try_get::<Option<String>, _>("craft_resources")? {
                 if let Ok(val) = serde_json::from_str::<Value>(&cr_json) {
                     if let Some(arr) = val.as_array() {
@@ -157,10 +158,21 @@ pub async fn plan_session(pool: &SqlitePool, account: &crate::settings::AccountP
             }
         }
 
+        // Determine whether this specific item benefits from the city bonus
+        let has_city_bonus_for_item = if let Some(ref sc) = shopcategory_opt {
+            if let Some(cat) = crate::settings::shopcategory_to_item_category(sc) {
+                account.has_city_bonus_for(&cat)
+            } else {
+                false
+            }
+        } else {
+            false
+        };
+
         // Persist derived materials into alchemy_session_materials
         for (mat_id, mat_count) in derived_materials.into_iter() {
-            // compute quantity_needed using account profile RRR logic
-            let qty_needed = account.materials_to_buy(it.quantity_out, craft_amount, mat_count, has_city_bonus);
+            // compute quantity_needed using account profile RRR logic for this item
+            let qty_needed = account.materials_to_buy(it.quantity_out, craft_amount, mat_count, has_city_bonus_for_item);
             let display_name = mat_id.clone();
             sqlx::query("INSERT INTO alchemy_session_materials (session_id, uniquename, display_name, quantity_needed, unit_price, total_cost) VALUES (?, ?, ?, ?, NULL, NULL)")
                 .bind(session_id)
@@ -205,7 +217,7 @@ pub async fn plan_session(pool: &SqlitePool, account: &crate::settings::AccountP
         materials: materials_out,
         account_name: account.name.clone(),
         city: account.city.clone(),
-        rrr_pct: rrr,
+        rrr_pct: session_rrr,
         use_focus: account.use_focus,
     })
 }

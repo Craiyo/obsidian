@@ -162,7 +162,7 @@ impl Default for AccountProfile {
         Self {
             name: "Account 1".to_string(),
             city: "Lymhurst".to_string(),
-            crafting_lines: vec![ItemCategory::Sword],
+            crafting_lines: vec![], 
             use_focus: false,
             crafting_fee_pct: 3.0,
         }
@@ -192,21 +192,21 @@ impl Default for Settings {
                 AccountProfile {
                     name: "Warrior".to_string(),
                     city: "Martlock".to_string(),
-                    crafting_lines: vec![ItemCategory::Axe],
+                    crafting_lines: vec![],
                     use_focus: false,
                     crafting_fee_pct: 3.0,
                 },
                 AccountProfile {
                     name: "Hunter".to_string(),
                     city: "Lymhurst".to_string(),
-                    crafting_lines: vec![ItemCategory::Bow],
+                    crafting_lines: vec![],
                     use_focus: false,
                     crafting_fee_pct: 3.0,
                 },
                 AccountProfile {
                     name: "Mage".to_string(),
                     city: "Thetford".to_string(),
-                    crafting_lines: vec![ItemCategory::FireStaff],
+                    crafting_lines: vec![],
                     use_focus: false,
                     crafting_fee_pct: 3.0,
                 },

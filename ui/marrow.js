@@ -443,6 +443,12 @@
     list.textContent = "Loading...";
     try {
       const r = await fetch(`${BASE}/api/v1/marrow/favourites`);
+      if (r.status === 404) {
+        // Favourites table/endpoint may not be present on some backends — treat as empty
+        list.className = "muted";
+        list.textContent = "No favourites yet";
+        return;
+      }
       if (!r.ok) throw new Error();
       const favs = await r.json();
       if (!favs.length) {
@@ -657,7 +663,11 @@
     const sessionId = sessionStorage.getItem("alchemy_session_id");
     if (!sessionId) return;
     const id = Number(sessionId);
-    if (!id) return;
+    if (!Number.isFinite(id)) {
+      // cleanup invalid value
+      sessionStorage.removeItem("alchemy_session_id");
+      return;
+    }
     try {
       // Prefer marrow's receive endpoint which returns the session payload
       const r = await fetch(`${BASE}/api/v1/marrow/session/${id}/receive`);

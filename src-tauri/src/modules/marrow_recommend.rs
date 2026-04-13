@@ -104,11 +104,8 @@ fn resolve_has_city_bonus(shopcategory: &str, account: &AccountProfile) -> bool 
             bonus_city_for(cat).eq_ignore_ascii_case(&account.city)
                 && account.crafting_lines.contains(cat)
         }
-        // Unknown category — fall back to simple city match heuristic
-        None => account.city.eq_ignore_ascii_case(
-            // Map the request city heuristically
-            &account.city
-        ) && !account.crafting_lines.is_empty(),
+        // Unknown category — no city bonus by default
+        None => false,
     }
 }
 
