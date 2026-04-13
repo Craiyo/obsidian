@@ -65,6 +65,11 @@ pub struct SessionSummary {
     pub session_id: i64,
     pub account_name: String,
     pub created_at: i64,
+    pub city: String,
+    pub item_count: i64,
+    pub rrr: f64,
+    pub total_cost: Option<f64>,
+    pub sent_to_marrow: bool,
 }
 
 #[derive(Debug, Deserialize)]
@@ -296,7 +301,7 @@ pub async fn plan_session(pool: &SqlitePool, account: &crate::settings::AccountP
 }
 
 pub async fn list_sessions(pool: &SqlitePool, limit: i64) -> Result<Vec<SessionSummary>, AlchemyError> {
-    let rows = sqlx::query("SELECT id, account_name, created_at FROM alchemy_sessions ORDER BY created_at DESC LIMIT ?")
+    let rows = sqlx::query("SELECT s.id, s.account_name, s.created_at, s.city, s.rrr, s.sent_to_marrow, \n        (SELECT COUNT(*) FROM alchemy_session_items WHERE session_id = s.id) as item_count, \n        (SELECT SUM(total_cost) FROM alchemy_session_materials WHERE session_id = s.id) as total_cost \n        FROM alchemy_sessions s ORDER BY created_at DESC LIMIT ?")
         .bind(limit)
         .fetch_all(pool)
         .await?;
@@ -305,6 +310,11 @@ pub async fn list_sessions(pool: &SqlitePool, limit: i64) -> Result<Vec<SessionS
         session_id: r.get("id"),
         account_name: r.get("account_name"),
         created_at: r.get("created_at"),
+        city: r.try_get::<Option<String>, _>("city").unwrap_or_default().unwrap_or_default(),
+        item_count: r.try_get::<i64, _>("item_count").unwrap_or(0),
+        rrr: r.try_get::<f64, _>("rrr").unwrap_or(0.0),
+        total_cost: r.try_get::<Option<f64>, _>("total_cost").unwrap_or(None),
+        sent_to_marrow: r.try_get::<i64, _>("sent_to_marrow").unwrap_or(0) != 0,
     }).collect();
 
     Ok(summaries)

@@ -348,6 +348,7 @@
 
     rrrBar.innerHTML = `
       <span>Account: <strong>${session.account_name}</strong></span>
+      <span>City: <strong>${session.city || '—'}</strong></span>
       <span>Focus: <strong>${session.use_focus ? "Yes" : "No"}</strong></span>
       <span>RRR: <strong>${session.rrr_pct}%</strong></span>
     `;
