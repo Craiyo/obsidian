@@ -98,6 +98,20 @@ impl From<crate::modules::seance::SeanceError> for ApiError {
     }
 }
 
+impl From<crate::modules::alchemy::AlchemyError> for ApiError {
+    fn from(err: crate::modules::alchemy::AlchemyError) -> Self {
+        use crate::modules::alchemy::AlchemyError::*;
+        match err {
+            AccountNotFound | NotCraftable(_) | NoMaterials(_) =>
+                ApiError::new(axum::http::StatusCode::BAD_REQUEST, err.to_string()),
+            ItemNotFound(_) | SessionNotFound =>
+                ApiError::new(axum::http::StatusCode::NOT_FOUND, err.to_string()),
+            Sqlx(_) | Json(_) =>
+                ApiError::new(axum::http::StatusCode::INTERNAL_SERVER_ERROR, err.to_string()),
+        }
+    }
+}
+
 pub async fn serve(state: AppState) -> Result<(), std::io::Error> {
     let app = Router::new()
         .route("/api/v1/health", get(health))

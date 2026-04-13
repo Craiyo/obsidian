@@ -2,33 +2,64 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Obsidian — Alchemy</title>
   <link rel="stylesheet" href="../styles/main.css" />
   <style>
-    .workbench-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 12px; }
-    .workbench-result { grid-column: span 2; }
-    .card h3 { margin-bottom: 12px; font-size: 13px; color: var(--accent-2); }
-    .field-row { display: flex; gap: 10px; margin-bottom: 12px; align-items: flex-end; }
-    .field-row .field { flex: 1; }
-    .materials-table { width: 100%; border-collapse: collapse; font-size: 12px; }
-    .materials-table td { padding: 6px 4px; border-bottom: 1px solid var(--border); }
-    .profit-pill { display: inline-block; padding: 4px 12px; border-radius: 999px; font-weight: 600; font-size: 18px; }
-    .profit-pill.positive { background: rgba(34, 197, 94, 0.15); color: #22c55e; }
-    .profit-pill.negative { background: rgba(239, 68, 68, 0.15); color: #ef4444; }
-    /* Reused from marrow */
-    .combo-wrap { position: relative; }
-    .combo-label { display: block; font-size: 11px; color: var(--muted); margin-top: 4px; min-height: 14px; }
-    .combo-menu { position: absolute; top: 100%; left: 0; right: 0; z-index: 20; background: var(--panel-2); border: 1px solid var(--border); border-radius: 8px; margin-top: 6px; max-height: 240px; overflow: auto; box-shadow: var(--shadow); }
-    .search-row { display: flex; align-items: center; gap: 10px; padding: 6px 8px; border-radius: 6px; cursor: pointer; }
-    .search-row:hover { background: rgba(127, 86, 217, 0.1); }
-    .search-row.active { background: rgba(127, 86, 217, 0.2); }
-    .tier-badge { font-size: 10px; font-weight: 600; color: var(--accent); background: rgba(127, 86, 217, 0.15); padding: 2px 5px; border-radius: 3px; }
-    .item-name { font-size: 13px; flex: 1; }
-    #alchemy-result-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-top: 16px; }
-    .stat-box { background: var(--panel); padding: 12px; border-radius: 8px; border: 1px solid var(--border); }
-    .stat-label { font-size: 10px; color: var(--muted); text-transform: uppercase; margin-bottom: 4px; }
-    .stat-value { font-size: 16px; font-weight: 600; }
+    .section-card{background:#fff;border:0.5px solid #e5e3ef;border-radius:10px;margin-bottom:14px}
+    .section-head{padding:12px 16px;border-bottom:0.5px solid #f0eef8;display:flex;align-items:center;justify-content:space-between;gap:8px}
+    .section-head h2{font-size:13px;font-weight:600;color:#111;margin:0}
+    .section-body{padding:14px 16px}
+    .row{display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap}
+    .muted{font-size:12px;color:#aaa;padding:8px 0}
+    .error-msg{font-size:12px;color:#dc2626;margin-top:6px}
+    .btn-primary{background:#6B46C1;color:#fff;border:1px solid #6B46C1;border-radius:8px;padding:8px 14px;cursor:pointer;font-size:13px}
+    .btn-primary:hover{background:#5a38a8}
+    .btn-primary:disabled{opacity:0.6;cursor:not-allowed}
+    .btn-secondary{background:#fff;color:#6B46C1;border:1px solid #6B46C1;border-radius:8px;padding:8px 14px;cursor:pointer;font-size:13px}
+    .btn-secondary:hover{background:#f5f3ff}
+    .btn-danger{background:#fff;color:#dc2626;border:1px solid #fca5a5;border-radius:8px;padding:6px 10px;cursor:pointer;font-size:12px}
+    .btn-danger:hover{background:#fef2f2}
+    .input,.select{background:#fff;border:1px solid #ddd;border-radius:8px;padding:8px 10px;color:#111;font-size:13px}
+    .input:focus,.select:focus{outline:none;border-color:#6B46C1}
+    .badge{font-size:10px;padding:2px 8px;border-radius:999px;background:#ede9fe;color:#6B46C1}
+    .top-bar{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px}
+    .top-left{display:flex;align-items:center;gap:8px}
+
+    /* Queue table */
+    .queue-table{width:100%;border-collapse:collapse;margin-top:10px;font-size:13px}
+    .queue-table th{font-size:10px;text-transform:uppercase;letter-spacing:0.5px;color:#888;padding:4px 8px;text-align:left;border-bottom:1px solid #f0eef8}
+    .queue-table td{padding:7px 8px;border-bottom:0.5px solid #f8f7fc;vertical-align:middle}
+    .queue-table tr:last-child td{border-bottom:none}
+    .qty-input{width:70px;text-align:right}
+
+    /* Shopping list */
+    .shop-table{width:100%;border-collapse:collapse;font-size:13px;margin-top:6px}
+    .shop-table th{font-size:10px;text-transform:uppercase;letter-spacing:0.5px;color:#888;padding:4px 8px;text-align:left;border-bottom:1px solid #f0eef8}
+    .shop-table td{padding:7px 8px;border-bottom:0.5px solid #f8f7fc;vertical-align:middle}
+    .shop-table tr:last-child td{border-bottom:none}
+    .price-input{width:110px;text-align:right}
+    .total-row td{font-weight:600;background:#f8f7fc}
+
+    /* RRR info bar */
+    .rrr-bar{display:flex;gap:16px;align-items:center;padding:8px 12px;background:#f8f7fc;border-radius:8px;margin-bottom:12px;font-size:12px}
+    .rrr-bar span{color:#555}
+    .rrr-bar strong{color:#6B46C1}
+
+    /* Session history */
+    .hist-row{display:flex;align-items:center;justify-content:space-between;padding:8px 10px;background:#f8f7fc;border-radius:6px;margin-bottom:4px;font-size:12px;cursor:pointer}
+    .hist-row:hover{background:#ede9fe}
+    .hist-row-meta{color:#888;font-size:11px;margin-top:2px}
+
+    /* Combo */
+    .combo-wrap{position:relative;min-width:260px}
+    .combo-label{display:block;font-size:11px;color:#888;margin-top:3px;min-height:14px}
+    .combo-menu{position:absolute;top:100%;left:0;right:0;z-index:20;background:#fff;border:1px solid #e5e3ef;border-radius:8px;margin-top:4px;max-height:220px;overflow:auto;box-shadow:0 8px 24px rgba(17,17,17,0.08)}
+    .combo-empty{padding:8px 10px;font-size:12px;color:#aaa}
+    .search-row{display:flex;align-items:center;gap:8px;padding:6px 8px;border-radius:6px;cursor:pointer}
+    .search-row:hover,.search-row.active{background:#f5f3ff}
+    .tier-badge{font-size:10px;font-weight:600;color:#6B46C1;background:#ede9fe;padding:2px 5px;border-radius:3px;min-width:22px;text-align:center}
+    .item-name{font-size:13px;color:#111;flex:1}
+    .item-cat{font-size:11px;color:#aaa}
   </style>
 </head>
 <body data-page="alchemy">
@@ -37,123 +68,116 @@
       <div class="logo"><span class="dot"></span> Obsidian</div>
       <nav class="nav">
         <div class="nav-section">Version 1.0</div>
-<a class="nav-item" href="../index.html">Overview</a>
-<a class="nav-item" href="../pages/settings.html">Settings</a>
-<a class="nav-item" href="../pages/seance.html">Seance</a>
-<a class="nav-item" href="../pages/marrow.html">Marrow</a>
-<a class="nav-item active" href="../pages/alchemy.html">Alchemy</a>
-<div class="nav-section">Later Versions</div>
-<a class="nav-item disabled" href="#">Wraith<span class="nav-tag">v2</span></a>
-<a class="nav-item disabled" href="#">Hemorrhage<span class="nav-tag">v2</span></a>
-<a class="nav-item disabled" href="#">Effigy<span class="nav-tag">v3</span></a>
-<a class="nav-item disabled" href="#">Hex<span class="nav-tag">v3</span></a>
-<a class="nav-item disabled" href="#">Specter<span class="nav-tag">v4</span></a>
-<a class="nav-item disabled" href="#">Wail<span class="nav-tag">v4</span></a>
-<a class="nav-item disabled" href="#">Chronicle<span class="nav-tag">v5</span></a>
+        <a class="nav-item" href="../index.html">Overview</a>
+        <a class="nav-item" href="./settings.html">Settings</a>
+        <a class="nav-item" href="./seance.html">Seance</a>
+        <a class="nav-item" href="./marrow.html">Marrow</a>
+        <a class="nav-item active" href="./alchemy.html">Alchemy</a>
+        <div class="nav-section">Later Versions</div>
+        <a class="nav-item disabled" href="#">Wraith<span class="nav-tag">v2</span></a>
+        <a class="nav-item disabled" href="#">Hemorrhage<span class="nav-tag">v2</span></a>
+        <a class="nav-item disabled" href="#">Effigy<span class="nav-tag">v3</span></a>
+        <a class="nav-item disabled" href="#">Hex<span class="nav-tag">v3</span></a>
+        <a class="nav-item disabled" href="#">Specter<span class="nav-tag">v4</span></a>
+        <a class="nav-item disabled" href="#">Wail<span class="nav-tag">v4</span></a>
+        <a class="nav-item disabled" href="#">Chronicle<span class="nav-tag">v5</span></a>
       </nav>
     </aside>
     <main class="content">
-      <div class="header">
-        <h1>Alchemy</h1>
-        <span class="badge">v1.0</span>
+      <div class="top-bar">
+        <div class="top-left">
+          <h1>Alchemy</h1>
+          <span class="badge">Craft Planner</span>
+        </div>
       </div>
-      <section class="section">
-        <div class="section-head">
-          <h2>Alchemy & Yield Optimizer</h2>
-          <div id="yield-badge" class="badge">Masterchemy v1.0</div>
-        </div>
-        <div class="workbench-grid">
-          <div class="workbench-controls card">
-            <h3>Recipe Selection</h3>
-            <div class="field">
-              <label>Select Item to Craft</label>
-              <div class="combo-wrap">
-                <input id="alchemy-item-id" class="input" type="text" placeholder="e.g. Poison Potion" autocomplete="off" />
-                <span id="alchemy-item-label" class="combo-label"></span>
-              </div>
-            </div>
-            <div class="row" style="margin-bottom: 16px;">
-              <div class="input-group">
-                <label>Location Type</label>
-                <div style="display:flex; gap:16px; align-items:center; height:36px;">
-                  <label style="display:flex; align-items:center; gap:6px; cursor:pointer;">
-                    <input type="radio" name="location-type" value="city" checked /> City
-                  </label>
-                  <label style="display:flex; align-items:center; gap:6px; cursor:pointer;">
-                    <input type="radio" name="location-type" value="hideout" /> Hideout
-                  </label>
-                </div>
-              </div>
-            </div>
 
-            <div id="city-controls" class="row">
-              <div class="input-group">
-                <label>Crafting City (Wait for Auto)</label>
-                <select id="alchemy-city">
-                  <option value="Brecilien">Brecilien (Potions)</option>
-                  <option value="Caerleon">Caerleon (Food/Tools)</option>
-                  <option value="Lymhurst">Lymhurst</option>
-                  <option value="Martlock">Martlock</option>
-                  <option value="Bridgewatch">Bridgewatch</option>
-                  <option value="Thetford">Thetford</option>
-                  <option value="FortSterling">Fort Sterling</option>
-                  <option value="BlackMarket">Black Market</option>
-                </select>
-              </div>
-            </div>
-
-            <div id="hideout-controls" class="row" style="display:none">
-              <div class="input-group">
-                <label>Hideout Power (0-9)</label>
-                <input type="number" id="alchemy-ho-power" value="5" min="0" max="9" />
-              </div>
-            </div>
-
-            <div class="row">
-              <div class="input-group">
-                <label>Batch Size (Runs)</label>
-                <input type="number" id="alchemy-batch" value="20" min="1" />
-              </div>
-              <div class="input-group" style="display:flex; flex-direction:column; justify-content:center; gap:8px;">
-                <label style="display:flex; align-items:center; gap:6px; cursor:pointer;">
-                  <input type="checkbox" id="alchemy-focus" /> Use Focus
-                </label>
-                <label style="display:flex; align-items:center; gap:6px; cursor:pointer;">
-                  <input type="checkbox" id="alchemy-daily" /> Daily Bonus (+10%)
-                </label>
-              </div>
-            </div>
-            
-            <div style="margin-top:16px"><button id="alchemy-calc" class="btn-primary">Calculate yield</button></div>
-          </div>
-
-          <div class="workbench-materials card">
-            <h3>Materials Required</h3>
-            <div id="materials-list" class="muted">Select a recipe to view materials</div>
-          </div>
-
-          <div class="workbench-result card">
-            <h3>Yield Analysis</h3>
-            <div id="alchemy-result">
-              <div class="muted">Run Masterchemy to see results</div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <section class="section">
-        <div class="section-head"><h2>Saved Scenarios</h2></div>
+      <!-- Account + Item Queue -->
+      <section class="section-card">
+        <div class="section-head"><h2>Craft Queue</h2></div>
         <div class="section-body">
-          <div class="field-row">
-            <input id="alchemy-scenario-name" class="input" type="text" placeholder="Scenario Name" />
-            <button id="alchemy-save" class="btn-primary">Save</button>
-            <button id="alchemy-refresh" class="btn-primary">Refresh</button>
+
+          <div class="row" style="margin-bottom:12px">
+            <div>
+              <div style="font-size:11px;color:#888;margin-bottom:4px">Account</div>
+              <select id="alchemy-account" class="select"></select>
+            </div>
           </div>
-          <div id="alchemy-scenarios-output" class="muted" style="margin-top:12px">No saved scenarios</div>
+
+          <div id="alchemy-rrr-bar" class="rrr-bar" style="display:none">
+            <span>City: <strong id="rrr-city">—</strong></span>
+            <span>Focus: <strong id="rrr-focus">—</strong></span>
+            <span>RRR: <strong id="rrr-value">—</strong></span>
+            <span style="color:#aaa;font-size:11px">Materials to buy = raw needed × (1 − RRR)</span>
+          </div>
+
+          <div class="row" style="margin-bottom:10px">
+            <div class="combo-wrap">
+              <input id="alchemy-item-search" class="input" type="text" placeholder="Search item to add…" autocomplete="off" />
+              <span id="alchemy-item-search-label" class="combo-label"></span>
+            </div>
+            <input id="alchemy-qty" class="input qty-input" type="number" min="1" value="1" placeholder="Qty" />
+            <button id="alchemy-add-item" class="btn-secondary">+ Add</button>
+          </div>
+          <div id="alchemy-add-error" class="error-msg"></div>
+
+          <table class="queue-table" id="alchemy-queue-table" style="display:none">
+            <thead>
+              <tr>
+                <th>Item</th>
+                <th style="text-align:right">Want</th>
+                <th style="text-align:right">Craft amount</th>
+                <th style="text-align:right">Runs</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody id="alchemy-queue-body"></tbody>
+          </table>
+          <div id="alchemy-queue-empty" class="muted">Add items to the queue above</div>
+
+          <div style="margin-top:12px;display:flex;gap:8px">
+            <button id="alchemy-plan-btn" class="btn-primary" disabled>Plan Shopping List</button>
+            <button id="alchemy-clear-btn" class="btn-danger" style="display:none">Clear Queue</button>
+          </div>
+          <div id="alchemy-plan-error" class="error-msg"></div>
         </div>
       </section>
 
-      <div class="footer">Obsidian UI — Crafting Analytics v1</div>
+      <!-- Shopping List -->
+      <section class="section-card" id="alchemy-shopping-section" style="display:none">
+        <div class="section-head">
+          <h2>Shopping List</h2>
+          <button id="alchemy-send-marrow" class="btn-primary" style="font-size:12px;padding:5px 12px">Send to Marrow →</button>
+        </div>
+        <div class="section-body">
+          <div id="alchemy-shopping-rrr" class="rrr-bar"></div>
+          <table class="shop-table">
+            <thead>
+              <tr>
+                <th>Material</th>
+                <th style="text-align:right">To Buy</th>
+                <th style="text-align:right">Unit Price (silver)</th>
+                <th style="text-align:right">Total Cost</th>
+              </tr>
+            </thead>
+            <tbody id="alchemy-shop-body"></tbody>
+            <tfoot>
+              <tr class="total-row">
+                <td colspan="3" style="text-align:right;padding:8px">Total Material Cost</td>
+                <td style="text-align:right;padding:8px" id="alchemy-total-cost">—</td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+      </section>
+
+      <!-- Session History -->
+      <section class="section-card">
+        <div class="section-head"><h2>Recent Sessions</h2></div>
+        <div class="section-body">
+          <div id="alchemy-history-list" class="muted">No sessions yet</div>
+        </div>
+      </section>
+
     </main>
   </div>
   <script src="../app.js"></script>

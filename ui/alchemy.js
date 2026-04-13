@@ -1,263 +1,456 @@
 (() => {
   const BASE = "http://127.0.0.1:38991";
-  const comboState = {};
-
   const $ = (id) => document.getElementById(id);
 
-  function getBestCity(cat, sub) {
-    cat = (cat || "").toLowerCase();
-    sub = (sub || "").toLowerCase();
+  // ── State ────────────────────────────────────────────────────────────────
+  let accounts = [];           // loaded from settings
+  let queue = [];              // { uniquename, display_name, craft_amount, quantity_out }
+  let currentSessionId = null; // session_id after planning
+  let comboSelectedUniquename = "";
+  let comboSelectedDisplay = "";
+  let comboTimer = null;
+  let comboResults = [];
+  let comboActiveIdx = -1;
+  let comboReqId = 0;
 
-    if (cat === "consumables") {
-      if (sub.includes("potion")) return "Brecilien";
-      if (sub.includes("food")) return "Caerleon";
-      return "Caerleon";
-    }
-    if (cat === "weapons") {
-      if (sub.includes("crossbow")) return "Bridgewatch";
-      if (["sword", "bow", "arcanestaff"].some(s => sub.includes(s))) return "Lymhurst";
-      if (["axe"].some(s => sub.includes(s))) return "Martlock";
-      if (["dagger", "cursestaff"].some(s => sub.includes(s))) return "Bridgewatch";
-      if (["mace", "naturestaff", "firestaff"].some(s => sub.includes(s))) return "Thetford";
-      if (["hammer", "spear", "holystaff", "froststaff"].some(s => sub.includes(s))) return "FortSterling";
-      return "Caerleon";
-    }
-    if (cat === "offhands") {
-      if (sub.includes("shield")) return "Martlock";
-      return "Martlock"; // Most offhands like torches go to Martlock
-    }
-    if (cat === "armors") {
-      if (sub.includes("plate_armor")) return "FortSterling";
-      if (sub.includes("leather_armor")) return "Thetford";
-      if (sub.includes("cloth_armor")) return "Martlock";
-    }
-    if (cat === "head") {
-      if (sub.includes("leather_helmet")) return "Lymhurst";
-      if (sub.includes("plate_helmet")) return "Bridgewatch";
-      if (sub.includes("cloth_helmet")) return "Thetford";
-    }
-    if (cat === "shoes") {
-      if (sub.includes("leather_shoes")) return "Lymhurst";
-      if (sub.includes("plate_shoes")) return "Martlock";
-      if (sub.includes("cloth_shoes")) return "FortSterling";
-    }
-    if (cat === "tool") return "Caerleon";
-    
-    return "Caerleon";
+  // ── Helpers ───────────────────────────────────────────────────────────────
+  function setError(id, msg) {
+    const el = $(id);
+    if (el) el.textContent = msg || "";
   }
 
-  function setComboValue(inputId, uniquename, displayName) {
-    const state = comboState[inputId];
-    if (!state) return;
-    state.uniquename = uniquename || "";
-    state.input.value = displayName || uniquename || "";
-    state.label.textContent = uniquename ? `${uniquename}` : "";
+  function fmt(n) {
+    if (n == null) return "—";
+    return Number(n).toLocaleString();
   }
 
-  function renderMenu(inputId) {
-    const state = comboState[inputId];
-    if (!state) return;
-    const { results, menu } = state;
-    if (!results.length) {
-      menu.style.display = "none";
-      return;
+  // ── Account selector ─────────────────────────────────────────────────────
+  async function loadAccounts() {
+    try {
+      const r = await fetch(`${BASE}/api/v1/settings`);
+      if (!r.ok) throw new Error();
+      const settings = await r.json();
+      accounts = settings.accounts || [];
+
+      const sel = $("alchemy-account");
+      sel.innerHTML = accounts.map((a, i) =>
+        `<option value="${i}">${a.name} — ${a.city}${a.use_focus ? " (focus)" : ""}</option>`
+      ).join("");
+
+      updateRRRBar();
+    } catch {
+      $("alchemy-account").innerHTML = `<option value="">No accounts configured</option>`;
     }
-    menu.innerHTML = results
-      .map((it, idx) => `
-        <div class="search-row${idx === state.activeIndex ? " active" : ""}" data-idx="${idx}">
-          <span class="tier-badge">T${it.tier}</span>
-          <span class="item-name">${it.display_name}</span>
-        </div>`)
-      .join("");
-    menu.style.display = "block";
-
-    menu.querySelectorAll(".search-row").forEach(row => {
-      row.addEventListener("mousedown", (e) => {
-        e.preventDefault();
-        const it = state.results[row.dataset.idx];
-        state.onSelect(it);
-        setComboValue(inputId, it.uniquename, it.display_name);
-        menu.style.display = "none";
-      });
-    });
   }
 
-  function makeAutocomplete(inputId, onSelect) {
-    const input = $(inputId);
+  function selectedAccount() {
+    const idx = Number($("alchemy-account").value);
+    return accounts[idx] || null;
+  }
+
+  function updateRRRBar() {
+    const acc = selectedAccount();
+    const bar = $("alchemy-rrr-bar");
+    if (!acc) { bar.style.display = "none"; return; }
+
+    // Compute RRR client-side for display (same formula as Rust)
+    const base = 18.0;
+    const cityBonus = acc.crafting_lines && acc.crafting_lines.length > 0 ? 29.0 : 0.0;
+    const focusBonus = acc.use_focus ? 59.0 : 0.0;
+    const pb = base + cityBonus + focusBonus;
+    const rrr = 1.0 - 1.0 / (1.0 + pb / 100.0);
+
+    $("rrr-city").textContent = acc.city;
+    $("rrr-focus").textContent = acc.use_focus ? "Yes" : "No";
+    $("rrr-value").textContent = `${(rrr * 100).toFixed(1)}%`;
+    bar.style.display = "flex";
+  }
+
+  // ── Autocomplete ──────────────────────────────────────────────────────────
+  function setupCombo() {
+    const input = $("alchemy-item-search");
     const wrap = input.closest(".combo-wrap");
-    const label = $(`${inputId}-label`);
+    const label = $("alchemy-item-search-label");
+
     const menu = document.createElement("div");
     menu.className = "combo-menu";
     menu.style.display = "none";
     wrap.appendChild(menu);
 
-    comboState[inputId] = { input, label, menu, onSelect, results: [], activeIndex: -1, timer: null };
+    function closeMenu() {
+      menu.style.display = "none";
+      comboActiveIdx = -1;
+    }
 
-    input.addEventListener("input", () => {
-      const state = comboState[inputId];
-      const q = input.value.trim();
-      if (!q) {
-        state.results = [];
-        menu.style.display = "none";
+    function renderMenu() {
+      if (!comboResults.length) {
+        menu.innerHTML = `<div class="combo-empty">No items found</div>`;
+        menu.style.display = "block";
         return;
       }
-      clearTimeout(state.timer);
-      state.timer = setTimeout(async () => {
+      menu.innerHTML = comboResults.map((it, idx) => {
+        const sub = [it.shopcategory, it.shopsubcategory1].filter(Boolean).join(" > ");
+        const name = it.display_name || it.uniquename;
+        return `<div class="search-row${idx === comboActiveIdx ? " active" : ""}" data-idx="${idx}">
+          <span class="tier-badge">T${it.tier}</span>
+          <span class="item-name">${name}</span>
+          <span class="item-cat">${sub}</span>
+        </div>`;
+      }).join("");
+      menu.style.display = "block";
+      menu.querySelectorAll(".search-row").forEach(row => {
+        row.addEventListener("mousedown", e => {
+          e.preventDefault();
+          const it = comboResults[Number(row.dataset.idx)];
+          if (!it) return;
+          comboSelectedUniquename = it.uniquename;
+          comboSelectedDisplay = it.display_name || it.uniquename;
+          input.value = comboSelectedDisplay;
+          label.textContent = it.uniquename;
+          closeMenu();
+        });
+      });
+    }
+
+    input.addEventListener("input", () => {
+      const q = input.value.trim();
+      comboSelectedUniquename = "";
+      comboSelectedDisplay = "";
+      label.textContent = "";
+      if (!q) { clearTimeout(comboTimer); closeMenu(); return; }
+      clearTimeout(comboTimer);
+      comboTimer = setTimeout(async () => {
+        const rid = ++comboReqId;
         try {
           const r = await fetch(`${BASE}/api/v1/marrow/search?q=${encodeURIComponent(q)}`);
-          state.results = await r.json();
-          state.activeIndex = state.results.length ? 0 : -1;
-          renderMenu(inputId);
-        } catch {}
-      }, 200);
+          if (!r.ok || rid !== comboReqId) return;
+          comboResults = await r.json();
+          comboActiveIdx = comboResults.length ? 0 : -1;
+          renderMenu();
+        } catch { /* ignore */ }
+      }, 300);
     });
 
-    input.addEventListener("keydown", (e) => {
-      const state = comboState[inputId];
-      if (e.key === "ArrowDown" && state.results.length) {
+    input.addEventListener("keydown", e => {
+      if (e.key === "ArrowDown" && comboResults.length) {
         e.preventDefault();
-        state.activeIndex = Math.min(state.activeIndex + 1, state.results.length - 1);
-        renderMenu(inputId);
-      } else if (e.key === "ArrowUp" && state.results.length) {
+        comboActiveIdx = Math.min(comboActiveIdx + 1, comboResults.length - 1);
+        renderMenu();
+      } else if (e.key === "ArrowUp" && comboResults.length) {
         e.preventDefault();
-        state.activeIndex = Math.max(state.activeIndex - 1, 0);
-        renderMenu(inputId);
-      } else if (e.key === "Enter") {
-        if (state.activeIndex >= 0) {
-          e.preventDefault();
-          const it = state.results[state.activeIndex];
-          state.onSelect(it);
-          setComboValue(inputId, it.uniquename, it.display_name);
-        }
-        menu.style.display = "none";
+        comboActiveIdx = Math.max(comboActiveIdx - 1, 0);
+        renderMenu();
+      } else if (e.key === "Enter" && comboActiveIdx >= 0 && comboResults[comboActiveIdx]) {
+        e.preventDefault();
+        const it = comboResults[comboActiveIdx];
+        comboSelectedUniquename = it.uniquename;
+        comboSelectedDisplay = it.display_name || it.uniquename;
+        input.value = comboSelectedDisplay;
+        label.textContent = it.uniquename;
+        closeMenu();
       } else if (e.key === "Escape") {
-        menu.style.display = "none";
+        closeMenu();
       }
     });
 
-    input.addEventListener("blur", () => {
-      // Delay to allow mousedown on menu items to fire first
-      setTimeout(() => { menu.style.display = "none"; }, 200);
-    });
-
-    window.addEventListener("click", (e) => {
-      if (!wrap.contains(e.target)) menu.style.display = "none";
+    document.addEventListener("click", e => {
+      if (!wrap.contains(e.target)) closeMenu();
     });
   }
 
-  async function calculate() {
-    const item = comboState["alchemy-item-id"]?.uniquename;
-    if (!item) return;
+  // ── Queue management ──────────────────────────────────────────────────────
+  function renderQueue() {
+    const tbody = $("alchemy-queue-body");
+    const table = $("alchemy-queue-table");
+    const empty = $("alchemy-queue-empty");
+    const planBtn = $("alchemy-plan-btn");
+    const clearBtn = $("alchemy-clear-btn");
 
-    const useFocus = $("alchemy-focus").checked;
-    const dailyBonus = $("alchemy-daily").checked;
-    const isHideout = document.querySelector('input[name="location-type"]:checked').value === "hideout";
-    const hideoutPower = $("alchemy-ho-power").value;
-    const batchSize = $("alchemy-batch").value || 1;
-
-    const btn = $("alchemy-calc");
-    const resPanel = $("alchemy-result");
-
-    // Show Skeleton state
-    resPanel.innerHTML = `
-      <div style="text-align:center; margin-bottom:16px">
-        <div class="stat-label skeleton">Loading Yield Multiplier...</div>
-        <div class="profit-pill positive skeleton">0000.0 Items</div>
-      </div>
-      <div id="alchemy-result-stats">
-        <div class="stat-box skeleton"><div class="stat-value">---</div></div>
-        <div class="stat-box skeleton"><div class="stat-value">---</div></div>
-        <div class="stat-box skeleton"><div class="stat-value">---</div></div>
-      </div>
-    `;
-
-    btn.disabled = true;
-
-    try {
-      const r = await fetch(`${BASE}/api/v1/alchemy/analyze?item_id=${encodeURIComponent(item)}&batch_size=${batchSize}&use_focus=${useFocus}&daily_bonus=${dailyBonus}&is_hideout=${isHideout}&hideout_power=${hideoutPower}`);
-      const data = await r.json();
-      renderResults(data);
-    } catch (err) {
-      console.error(err);
-    } finally {
-      btn.disabled = false;
-      btn.textContent = "Calculate yield";
+    if (!queue.length) {
+      table.style.display = "none";
+      empty.style.display = "block";
+      planBtn.disabled = true;
+      clearBtn.style.display = "none";
+      return;
     }
-  }
 
-  function renderResults(d) {
-    const matList = $("materials-list");
-    const resPanel = $("alchemy-result");
+    table.style.display = "table";
+    empty.style.display = "none";
+    planBtn.disabled = false;
+    clearBtn.style.display = "inline-block";
 
-    const matRows = d.materials.map(m => `
+    tbody.innerHTML = queue.map((item, idx) => `
       <tr>
-        <td style="font-size:11px; font-weight:600; color:var(--muted)">${m.uniquename}</td>
-        <td style="text-align:right">x${m.total_required}</td>
-        <td style="text-align:right; color:var(--accent); font-weight:500">-${m.net_consumed.toFixed(1)}</td>
-        <td style="text-align:right; color:var(--accent-2); font-weight:500">+${m.return_amount.toFixed(1)}</td>
+        <td>
+          <div style="font-weight:500">${item.display_name}</div>
+          <div style="font-size:11px;color:#aaa">${item.uniquename}</div>
+        </td>
+        <td style="text-align:right">
+          <input class="input qty-input" type="number" min="1" value="${item.quantity_out}"
+            data-idx="${idx}" style="width:70px" />
+        </td>
+        <td style="text-align:right">${item.craft_amount}</td>
+        <td style="text-align:right">${Math.ceil(item.quantity_out / item.craft_amount)}</td>
+        <td style="text-align:right">
+          <button class="btn-danger" data-remove="${idx}">✕</button>
+        </td>
       </tr>
     `).join("");
 
-    matList.innerHTML = `
-      <table class="materials-table">
-        <thead>
-          <tr style="color:var(--muted); font-size:10px; text-transform:uppercase; letter-spacing:1px">
-            <th style="text-align:left">Material</th>
-            <th style="text-align:right">Initial</th>
-            <th style="text-align:right">Net</th>
-            <th style="text-align:right">Ret</th>
-          </tr>
-        </thead>
-        <tbody>${matRows}</tbody>
-      </table>
-    `;
-
-    resPanel.style.opacity = "0";
-    resPanel.innerHTML = `
-      <div style="text-align:center; margin-bottom:20px; text-shadow: 0 0 15px rgba(127, 86, 217, 0.25)">
-        <div class="stat-label" style="letter-spacing:1px; color:var(--muted)">TOTAL PRODUCTION YIELD (${d.batch_size} RUNS)</div>
-        <div class="profit-pill positive" style="font-size:32px; font-family:'Cinzel', serif; border:none; background:none; text-shadow: 0 0 12px rgba(34, 197, 94, 0.4)">
-          ${(d.craft_amount * d.batch_size * d.yield_multiplier).toFixed(1)} <span style="font-size:14px; font-family:'Inter', sans-serif; opacity:0.8">Items</span>
-        </div>
-      </div>
-      <div id="alchemy-result-stats">
-        <div class="stat-box" style="border-top: 2px solid var(--accent); background: linear-gradient(180deg, rgba(127, 86, 217, 0.05) 0%, transparent 100%)">
-          <div class="stat-label">Return Rate (RRR)</div>
-          <div class="stat-value" style="color:var(--accent-2)">${(d.rrr * 100).toFixed(1)}%</div>
-        </div>
-        <div class="stat-box" style="border-top: 2px solid var(--accent); background: linear-gradient(180deg, rgba(127, 86, 217, 0.05) 0%, transparent 100%)">
-          <div class="stat-label">Multiplier</div>
-          <div class="stat-value">x${d.yield_multiplier.toFixed(3)}</div>
-        </div>
-        <div class="stat-box" style="border-top: 2px solid var(--accent); background: linear-gradient(180deg, rgba(127, 86, 217, 0.05) 0%, transparent 100%)">
-          <div class="stat-label">Bonus Check</div>
-          <div class="stat-value" style="font-size:13px">${d.best_city}</div>
-        </div>
-      </div>
-    `;
-    
-    setTimeout(() => {
-        resPanel.style.transition = "opacity 0.4s ease-out";
-        resPanel.style.opacity = "1";
-    }, 10);
-  }
-
-  document.addEventListener("DOMContentLoaded", () => {
-    makeAutocomplete("alchemy-item-id", (it) => {
-      // Auto-select city
-      const best = getBestCity(it.shopcategory, it.shopsubcategory1);
-      const citySelect = $("alchemy-city");
-      if (citySelect) citySelect.value = best;
+    tbody.querySelectorAll("input[data-idx]").forEach(input => {
+      input.addEventListener("change", () => {
+        const idx = Number(input.dataset.idx);
+        const val = Math.max(1, parseInt(input.value) || 1);
+        queue[idx].quantity_out = val;
+        renderQueue();
+      });
     });
 
-    $("alchemy-calc").addEventListener("click", calculate);
-
-    document.querySelectorAll('input[name="location-type"]').forEach(radio => {
-      radio.addEventListener("change", (e) => {
-        const isHO = e.target.value === "hideout";
-        $("hideout-controls").style.display = isHO ? "flex" : "none";
-        $("city-controls").style.display = isHO ? "none" : "flex";
+    tbody.querySelectorAll("button[data-remove]").forEach(btn => {
+      btn.addEventListener("click", () => {
+        queue.splice(Number(btn.dataset.remove), 1);
+        renderQueue();
       });
+    });
+  }
+
+  async function addItem() {
+    setError("alchemy-add-error", "");
+    if (!comboSelectedUniquename) {
+      setError("alchemy-add-error", "Select an item from the dropdown first");
+      return;
+    }
+    const qty = Math.max(1, parseInt($("alchemy-qty").value) || 1);
+
+    if (queue.find(q => q.uniquename === comboSelectedUniquename)) {
+      setError("alchemy-add-error", "Item already in queue — change quantity there");
+      return;
+    }
+
+    queue.push({
+      uniquename: comboSelectedUniquename,
+      display_name: comboSelectedDisplay,
+      craft_amount: 1, // placeholder; real value comes from DB after planning
+      quantity_out: qty,
+    });
+
+    // Reset combo
+    $("alchemy-item-search").value = "";
+    $("alchemy-item-search-label").textContent = "";
+    comboSelectedUniquename = "";
+    comboSelectedDisplay = "";
+    $("alchemy-qty").value = "1";
+
+    renderQueue();
+  }
+
+  // ── Planning ──────────────────────────────────────────────────────────────
+  async function planSession() {
+    setError("alchemy-plan-error", "");
+    const acc = selectedAccount();
+    if (!acc) { setError("alchemy-plan-error", "Select an account first"); return; }
+    if (!queue.length) { setError("alchemy-plan-error", "Queue is empty"); return; }
+
+    const btn = $("alchemy-plan-btn");
+    btn.disabled = true;
+    btn.textContent = "Planning…";
+
+    try {
+      const r = await fetch(`${BASE}/api/v1/alchemy/plan`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          account_name: acc.name,
+          items: queue.map(q => ({ uniquename: q.uniquename, quantity_out: q.quantity_out })),
+        }),
+      });
+      if (!r.ok) {
+        const err = await r.json().catch(() => ({}));
+        throw new Error(err.message || `Error ${r.status}`);
+      }
+      const session = await r.json();
+      currentSessionId = session.session_id;
+
+      // Update queue with real craft_amounts from the planned items
+      session.items.forEach(pi => {
+        const qi = queue.find(q => q.uniquename === pi.uniquename);
+        if (qi) qi.craft_amount = pi.craft_amount;
+      });
+      renderQueue();
+
+      renderShoppingList(session);
+      loadHistory();
+    } catch (err) {
+      setError("alchemy-plan-error", err.message || "Planning failed");
+    } finally {
+      btn.disabled = false;
+      btn.textContent = "Plan Shopping List";
+    }
+  }
+
+  // ── Shopping list ─────────────────────────────────────────────────────────
+  function renderShoppingList(session) {
+    const section = $("alchemy-shopping-section");
+    const tbody = $("alchemy-shop-body");
+    const rrrBar = $("alchemy-shopping-rrr");
+
+    rrrBar.innerHTML = `
+      <span>Account: <strong>${session.account_name}</strong></span>
+      <span>City: <strong>${session.city}</strong></span>
+      <span>Focus: <strong>${session.use_focus ? "Yes" : "No"}</strong></span>
+      <span>RRR: <strong>${session.rrr_pct}%</strong></span>
+    `;
+
+    tbody.innerHTML = session.materials.map(m => `
+      <tr data-uniquename="${m.uniquename}">
+        <td>
+          <div style="font-weight:500">${m.display_name}</div>
+          <div style="font-size:11px;color:#aaa">${m.uniquename}</div>
+        </td>
+        <td style="text-align:right;font-weight:600">${fmt(m.quantity_needed)}</td>
+        <td style="text-align:right">
+          <input class="input price-input" type="number" min="0"
+            value="${m.unit_price || ""}" placeholder="Enter price"
+            data-uniquename="${m.uniquename}" />
+        </td>
+        <td style="text-align:right" id="cost-${m.uniquename.replace(/@/g, '-')}">
+          ${m.total_cost != null ? fmt(Math.round(m.total_cost)) + " silver" : "—"}
+        </td>
+      </tr>
+    `).join("");
+
+    updateTotalCost(session.materials);
+
+    tbody.querySelectorAll("input.price-input").forEach(input => {
+      input.addEventListener("change", async () => {
+        const uniquename = input.dataset.uniquename;
+        const price = parseInt(input.value) || 0;
+        if (price <= 0 || !currentSessionId) return;
+
+        try {
+          await fetch(`${BASE}/api/v1/alchemy/sessions/${currentSessionId}/price`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ uniquename, unit_price: price }),
+          });
+
+          // Update cost cell immediately
+          const row = tbody.querySelector(`tr[data-uniquename="${uniquename}"]`);
+          const qtyCell = row ? row.cells[1].textContent.replace(/,/g, "") : "0";
+          const qty = parseInt(qtyCell) || 0;
+          const total = qty * price;
+          const costCell = $(`cost-${uniquename.replace(/@/g, '-')}`);
+          if (costCell) costCell.textContent = fmt(total) + " silver";
+
+          // Reload full session to get updated total
+          const updated = await fetch(`${BASE}/api/v1/alchemy/sessions/${currentSessionId}`);
+          if (updated.ok) {
+            const s = await updated.json();
+            updateTotalCost(s.materials);
+          }
+        } catch { /* ignore transient errors */ }
+      });
+    });
+
+    section.style.display = "block";
+    section.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+
+  function updateTotalCost(materials) {
+    const total = materials.reduce((sum, m) => sum + (m.total_cost || 0), 0);
+    const allPriced = materials.length > 0 && materials.every(m => m.unit_price != null);
+    $("alchemy-total-cost").textContent = allPriced
+      ? fmt(Math.round(total)) + " silver"
+      : "— (enter all prices)";
+  }
+
+  // ── Send to Marrow ────────────────────────────────────────────────────────
+  async function sendToMarrow() {
+    if (!currentSessionId) return;
+    const btn = $("alchemy-send-marrow");
+    btn.disabled = true;
+    btn.textContent = "Sending…";
+    try {
+      const r = await fetch(`${BASE}/api/v1/alchemy/sessions/${currentSessionId}/send`, {
+        method: "POST",
+      });
+      if (!r.ok) throw new Error();
+      sessionStorage.setItem("alchemy_session_id", String(currentSessionId));
+      window.location.href = "./marrow.html";
+    } catch {
+      btn.disabled = false;
+      btn.textContent = "Send to Marrow →";
+    }
+  }
+
+  // ── Session history ───────────────────────────────────────────────────────
+  async function loadHistory() {
+    const list = $("alchemy-history-list");
+    try {
+      const r = await fetch(`${BASE}/api/v1/alchemy/sessions?limit=10`);
+      if (!r.ok) throw new Error();
+      const sessions = await r.json();
+      if (!sessions.length) {
+        list.className = "muted";
+        list.textContent = "No sessions yet";
+        return;
+      }
+      list.className = "";
+      list.innerHTML = sessions.map(s => `
+        <div class="hist-row" data-id="${s.id}">
+          <div>
+            <div style="font-weight:500">${s.account_name} — ${s.city}</div>
+            <div class="hist-row-meta">
+              ${s.item_count} item${s.item_count !== 1 ? "s" : ""} ·
+              RRR ${(s.rrr * 100).toFixed(1)}% ·
+              ${s.total_cost != null ? fmt(Math.round(s.total_cost)) + " silver total" : "prices pending"} ·
+              ${s.sent_to_marrow ? "✓ sent to Marrow" : "draft"}
+            </div>
+          </div>
+          <div style="font-size:11px;color:#aaa">
+            ${new Date(s.created_at * 1000).toLocaleDateString()}
+          </div>
+        </div>
+      `).join("");
+
+      list.querySelectorAll(".hist-row").forEach(row => {
+        row.addEventListener("click", async () => {
+          const id = Number(row.dataset.id);
+          try {
+            const r = await fetch(`${BASE}/api/v1/alchemy/sessions/${id}`);
+            if (!r.ok) throw new Error();
+            const session = await r.json();
+            currentSessionId = session.session_id;
+            renderShoppingList(session);
+          } catch { /* ignore */ }
+        });
+      });
+    } catch {
+      list.className = "error-msg";
+      list.textContent = "Failed to load sessions";
+    }
+  }
+
+  // ── Init ──────────────────────────────────────────────────────────────────
+  document.addEventListener("DOMContentLoaded", () => {
+    loadAccounts();
+    setupCombo();
+    loadHistory();
+
+    $("alchemy-account").addEventListener("change", updateRRRBar);
+    $("alchemy-add-item").addEventListener("click", addItem);
+    $("alchemy-plan-btn").addEventListener("click", planSession);
+    $("alchemy-clear-btn").addEventListener("click", () => {
+      queue = [];
+      currentSessionId = null;
+      $("alchemy-shopping-section").style.display = "none";
+      renderQueue();
+    });
+    $("alchemy-send-marrow").addEventListener("click", sendToMarrow);
+
+    // Allow pressing Enter in search to add item
+    $("alchemy-item-search").addEventListener("keydown", e => {
+      if (e.key === "Enter" && comboSelectedUniquename) addItem();
     });
   });
 })();
