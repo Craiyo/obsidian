@@ -241,7 +241,6 @@
       // Fill info bar
       $('alchemy-info-bar').innerHTML = `
         <span>Account: <strong>${s.account_name}</strong></span>
-        <span>City: <strong>${s.city}</strong></span>
         <span>RRR: <strong>${(s.rrr_pct * 100).toFixed(1)}%</strong></span>
       `;
 

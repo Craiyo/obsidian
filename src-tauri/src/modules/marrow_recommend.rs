@@ -100,9 +100,8 @@ fn resolve_has_city_bonus(shopcategory: &str, account: &AccountProfile) -> bool 
 
     match &category {
         Some(cat) => {
-            // City bonus requires: the item's bonus city == account's city AND account crafts that category
-            bonus_city_for(cat).eq_ignore_ascii_case(&account.city)
-                && account.crafting_lines.contains(cat)
+            // For now, reward city bonus if the account crafts this category.
+            account.crafting_lines.contains(cat)
         }
         // Unknown category — no city bonus by default
         None => false,

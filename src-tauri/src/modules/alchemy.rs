@@ -85,7 +85,7 @@ pub async fn plan_session(pool: &SqlitePool, account: &crate::settings::AccountP
 
     let res = sqlx::query("INSERT INTO alchemy_sessions (account_name, city, use_focus, rrr, created_at, sent_to_marrow) VALUES (?, ?, ?, ?, ?, 0)")
         .bind(&account.name)
-        .bind(&account.city)
+        .bind("")
         .bind(if account.use_focus { 1 } else { 0 })
         .bind(session_rrr)
         .bind(now)
@@ -247,7 +247,7 @@ pub async fn plan_session(pool: &SqlitePool, account: &crate::settings::AccountP
         items: session_items,
         materials: materials_out,
         account_name: account.name.clone(),
-        city: account.city.clone(),
+        city: String::new(),
         rrr_pct: session_rrr,
         use_focus: account.use_focus,
     })

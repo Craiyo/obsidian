@@ -107,8 +107,6 @@ pub fn shopcategory_to_item_category(s: &str) -> Option<ItemCategory> {
 pub struct AccountProfile {
     /// Display name e.g. "Warrior", "Hunter", "Mage"
     pub name: String,
-    /// The city this account crafts in
-    pub city: String,
     /// Item categories this account crafts
     pub crafting_lines: Vec<ItemCategory>,
     /// Whether this account uses focus when crafting
@@ -120,7 +118,9 @@ pub struct AccountProfile {
 impl AccountProfile {
     /// Whether this account gets the city bonus for the given item category.
     pub fn has_city_bonus_for(&self, category: &ItemCategory) -> bool {
-        bonus_city_for(category) == self.city && self.crafting_lines.contains(category)
+        // For now, an account gets a bonus if it lists the category in crafting_lines.
+        // City matching will be added by the city recommender in a future change.
+        self.crafting_lines.contains(category)
     }
 
     /// Production bonus as a percentage.
@@ -166,7 +166,6 @@ impl Default for AccountProfile {
     fn default() -> Self {
         Self {
             name: "Account 1".to_string(),
-            city: "Lymhurst".to_string(),
             crafting_lines: vec![], 
             use_focus: false,
             crafting_fee_pct: 3.0,
@@ -192,21 +191,18 @@ impl Default for Settings {
             accounts: vec![
                 AccountProfile {
                     name: "Warrior".to_string(),
-                    city: "Martlock".to_string(),
                     crafting_lines: vec![],
                     use_focus: false,
                     crafting_fee_pct: 3.0,
                 },
                 AccountProfile {
                     name: "Hunter".to_string(),
-                    city: "Lymhurst".to_string(),
                     crafting_lines: vec![],
                     use_focus: false,
                     crafting_fee_pct: 3.0,
                 },
                 AccountProfile {
                     name: "Mage".to_string(),
-                    city: "Thetford".to_string(),
                     crafting_lines: vec![],
                     use_focus: false,
                     crafting_fee_pct: 3.0,

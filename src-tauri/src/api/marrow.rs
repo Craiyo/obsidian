@@ -56,11 +56,7 @@ async fn recommend_item(
     let days = query.days.unwrap_or(14);
 
     // Find account whose city matches the requested city, fall back to first account
-    let account = state.settings.accounts.iter()
-        .find(|a| a.city.eq_ignore_ascii_case(&query.city))
-        .or_else(|| state.settings.accounts.first())
-        .cloned()
-        .unwrap_or_default();
+    let account = state.settings.accounts.first().cloned().unwrap_or_default();
 
     let decision = marrow_recommend::recommend_item(
         &state.db,

@@ -53,7 +53,7 @@
 
       const sel = $("alchemy-account");
       sel.innerHTML = accounts.map((a, i) =>
-        `<option value="${i}">${a.name} — ${a.city}${a.use_focus ? " (focus)" : ""}</option>`
+        `<option value="${i}">${a.name}${a.use_focus ? " (focus)" : ""}</option>`
       ).join("");
 
       updateRRRBar();
@@ -74,12 +74,11 @@
 
     // Compute RRR client-side for display (same formula as Rust)
     const base = 18.0;
-    const cityBonus = acc.crafting_lines && acc.crafting_lines.length > 0 ? 29.0 : 0.0;
+    const cityBonus = acc.crafting_lines && acc.crafting_lines.length > 0 ? 15.0 : 0.0;
     const focusBonus = acc.use_focus ? 59.0 : 0.0;
     const pb = base + cityBonus + focusBonus;
     const rrr = 1.0 - 1.0 / (1.0 + pb / 100.0);
 
-    $("rrr-city").textContent = acc.city;
     $("rrr-focus").textContent = acc.use_focus ? "Yes" : "No";
     $("rrr-value").textContent = `${(rrr * 100).toFixed(1)}%`;
     bar.style.display = "flex";
@@ -317,7 +316,6 @@
 
     rrrBar.innerHTML = `
       <span>Account: <strong>${session.account_name}</strong></span>
-      <span>City: <strong>${session.city}</strong></span>
       <span>Focus: <strong>${session.use_focus ? "Yes" : "No"}</strong></span>
       <span>RRR: <strong>${session.rrr_pct}%</strong></span>
     `;
