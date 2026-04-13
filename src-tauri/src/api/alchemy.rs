@@ -1,6 +1,6 @@
 use axum::{
     extract::{Path, Query, State},
-    routing::get,
+    routing::{get, delete},
     Json, Router,
 };
 use serde::Deserialize;
@@ -18,7 +18,7 @@ pub fn router() -> Router<AppState> {
     Router::new()
         .route("/plan",               axum::routing::post(plan))
         .route("/sessions",           get(list_sessions))
-        .route("/sessions/:id",       get(get_session))
+        .route("/sessions/:id",       get(get_session).delete(delete_session))
         .route("/sessions/:id/price", axum::routing::post(set_price))
         .route("/sessions/:id/send",  axum::routing::post(send_to_marrow))
 }
@@ -72,4 +72,12 @@ async fn send_to_marrow(
     alchemy_api::mark_sent_to_marrow(&state.db, id).await.map_err(ApiError::from)?;
     let session = alchemy_api::load_session(&state.db, id).await.map_err(ApiError::from)?;
     Ok(Json(session))
+}
+
+async fn delete_session(
+    State(state): State<AppState>,
+    Path(id): Path<i64>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    alchemy_api::delete_session(&state.db, id).await.map_err(ApiError::from)?;
+    Ok(Json(serde_json::json!({ "status": "deleted" })))
 }

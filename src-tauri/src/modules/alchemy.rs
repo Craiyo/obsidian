@@ -385,3 +385,22 @@ pub async fn mark_sent_to_marrow(pool: &SqlitePool, session_id: i64) -> Result<(
         .await?;
     Ok(())
 }
+
+pub async fn delete_session(pool: &SqlitePool, session_id: i64) -> Result<(), AlchemyError> {
+    let mut tx = pool.begin().await?;
+    // Delete materials, items, then session
+    sqlx::query("DELETE FROM alchemy_session_materials WHERE session_id = ?")
+        .bind(session_id)
+        .execute(&mut *tx)
+        .await?;
+    sqlx::query("DELETE FROM alchemy_session_items WHERE session_id = ?")
+        .bind(session_id)
+        .execute(&mut *tx)
+        .await?;
+    sqlx::query("DELETE FROM alchemy_sessions WHERE id = ?")
+        .bind(session_id)
+        .execute(&mut *tx)
+        .await?;
+    tx.commit().await?;
+    Ok(())
+}
