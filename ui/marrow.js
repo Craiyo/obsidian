@@ -627,4 +627,156 @@
 
     setInterval(loadGold, 60_000);
   });
+
+  // ── Alchemy session profit calculator ───────────────────────────────────────
+
+  let alchemySession = null;
+
+  function fmtS(n) {
+    if (n == null) return "—";
+    return Number(n).toLocaleString() + " s";
+  }
+
+  function renderAlchemySession(session) {
+    alchemySession = session;
+    const panel      = $("alchemy-session-panel");
+    const badge      = $("alchemy-session-badge");
+    const infoBar    = $("alchemy-info-bar");
+    const itemsTbody = $("alchemy-items-body");
+    const matsTbody  = $("alchemy-mats-body");
+
+    badge.textContent = `Session #${session.session_id}`;
+    infoBar.innerHTML = `
+      <span>Account: <strong>${session.account_name}</strong></span>
+      <span>City: <strong>${session.city}</strong></span>
+      <span>Focus: <strong>${session.use_focus ? "Yes" : "No"}</strong></span>
+      <span>RRR: <strong>${session.rrr_pct}%</strong></span>
+      <span>${session.items.length} item${session.items.length !== 1 ? "s" : ""}</span>
+    `;
+
+    // Items table with sell-price inputs
+    itemsTbody.innerHTML = session.items.map((item, idx) => `
+      <tr data-idx="${idx}">
+        <td>
+          <div style="font-weight:500">${item.display_name}</div>
+          <div style="font-size:11px;color:#aaa">${item.uniquename}</div>
+        </td>
+        <td style="text-align:right">${Number(item.quantity_out).toLocaleString()}</td>
+        <td style="text-align:right">${Number(item.runs_needed).toLocaleString()}</td>
+        <td style="text-align:right">
+          <input class="input sell-price-input" type="number" min="0"
+            id="sell-price-${idx}" placeholder="Enter price" />
+        </td>
+        <td style="text-align:right" id="revenue-${idx}">—</td>
+      </tr>
+    `).join("");
+
+    itemsTbody.querySelectorAll(".sell-price-input").forEach(input => {
+      input.addEventListener("input", () => {
+        const idx   = Number(input.closest("tr").dataset.idx);
+        const price = parseFloat(input.value) || 0;
+        const qty   = session.items[idx].quantity_out;
+        $(`revenue-${idx}`).textContent = price > 0 ? fmtS(price * qty) : "—";
+      });
+    });
+
+    // Materials table — read-only from session
+    matsTbody.innerHTML = session.materials.map(m => `
+      <tr>
+        <td>${m.display_name}</td>
+        <td style="text-align:right">${Number(m.quantity_needed).toLocaleString()}</td>
+        <td style="text-align:right">${m.unit_price != null ? fmtS(m.unit_price) : '<span style="color:#dc2626">not set</span>'}</td>
+        <td style="text-align:right">${m.total_cost != null ? fmtS(Math.round(m.total_cost)) : "—"}</td>
+      </tr>
+    `).join("");
+
+    panel.style.display = "block";
+    panel.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+
+  function calcAlchemyProfit() {
+    if (!alchemySession) return;
+
+    const craftFeePct = (parseFloat($("alchemy-craft-fee").value) || 1.5) / 100;
+
+    const itemResults = alchemySession.items.map((item, idx) => ({
+      ...item,
+      sell_price: parseFloat(document.getElementById(`sell-price-${idx}`)?.value) || 0,
+    }));
+
+    const missing = itemResults.filter(i => i.sell_price <= 0).map(i => i.display_name);
+    if (missing.length) {
+      alert(`Enter sell prices for:\n${missing.join("\n")}`);
+      return;
+    }
+
+    let gross     = 0;
+    let list_fee  = 0;
+    let sales_tax = 0;
+    for (const item of itemResults) {
+      const rev  = item.sell_price * item.quantity_out;
+      gross     += rev;
+      list_fee  += rev * 0.025;
+      sales_tax += rev * 0.03;
+    }
+
+    const mat_cost      = alchemySession.materials.reduce((s, m) => s + (m.total_cost || 0), 0);
+    const mats_missing  = alchemySession.materials.some(m => m.unit_price == null);
+    const craft_fee     = gross * craftFeePct;
+    const net           = gross - mat_cost - craft_fee - list_fee - sales_tax;
+    const margin        = gross > 0 ? ((net / gross) * 100).toFixed(1) : "0.0";
+    const cls           = net >= 0 ? "green" : "red";
+
+    $("alchemy-profit-grid").innerHTML = `
+      <div class="profit-card ${cls}">
+        <div class="profit-label">Net Profit</div>
+        <div class="profit-value ${cls}">${net >= 0 ? "+" : ""}${fmtS(Math.round(net))}</div>
+      </div>
+      <div class="profit-card">
+        <div class="profit-label">Gross Revenue</div>
+        <div class="profit-value">${fmtS(Math.round(gross))}</div>
+      </div>
+      <div class="profit-card ${cls}">
+        <div class="profit-label">Margin</div>
+        <div class="profit-value ${cls}">${margin}%</div>
+      </div>
+      <div class="profit-card">
+        <div class="profit-label">Material Cost</div>
+        <div class="profit-value">${mats_missing ? "⚠ incomplete" : fmtS(Math.round(mat_cost))}</div>
+      </div>
+    `;
+
+    $("alchemy-breakdown").innerHTML = `
+      <div class="bd-row"><span>Gross Revenue</span><span>+ ${fmtS(Math.round(gross))}</span></div>
+      <div class="bd-row"><span>Material Cost</span><span>− ${fmtS(Math.round(mat_cost))}${mats_missing ? " ⚠" : ""}</span></div>
+      <div class="bd-row"><span>Crafting Fee (${(craftFeePct * 100).toFixed(1)}%)</span><span>− ${fmtS(Math.round(craft_fee))}</span></div>
+      <div class="bd-row"><span>Listing Fee (2.5%)</span><span>− ${fmtS(Math.round(list_fee))}</span></div>
+      <div class="bd-row"><span>Sales Tax (3%)</span><span>− ${fmtS(Math.round(sales_tax))}</span></div>
+      <div class="bd-row"><span>Net Profit</span><span style="color:${net >= 0 ? "#166534" : "#b91c1c"}">${net >= 0 ? "+" : ""}${fmtS(Math.round(net))}</span></div>
+    `;
+
+    $("alchemy-profit-result").style.display = "block";
+  }
+
+  async function loadAlchemySessionIfPending() {
+    const sessionId = sessionStorage.getItem("alchemy_session_id");
+    if (!sessionId) return;
+    try {
+      const r = await fetch(`${BASE}/api/v1/alchemy/sessions/${sessionId}`);
+      if (!r.ok) return;
+      renderAlchemySession(await r.json());
+    } catch { /* server may not be up yet — silently ignore */ }
+  }
+
+  document.addEventListener("DOMContentLoaded", () => {
+    $("alchemy-dismiss")?.addEventListener("click", () => {
+      sessionStorage.removeItem("alchemy_session_id");
+      $("alchemy-session-panel").style.display = "none";
+      alchemySession = null;
+    });
+    $("alchemy-calc-btn")?.addEventListener("click", calcAlchemyProfit);
+    loadAlchemySessionIfPending();
+  });
+
 })();
+

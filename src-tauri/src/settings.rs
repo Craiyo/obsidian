@@ -69,6 +69,40 @@ pub fn bonus_city_for(category: &ItemCategory) -> &'static str {
     }
 }
 
+/// Maps a `shopcategory` string from the items DB to an `ItemCategory`.
+/// Returns `None` for categories that don't have a royal-city specialisation bonus
+/// (e.g. consumables, resources, furniture, mounts).
+pub fn shopcategory_to_item_category(s: &str) -> Option<ItemCategory> {
+    match s.to_lowercase().as_str() {
+        "sword"             => Some(ItemCategory::Sword),
+        "bow"               => Some(ItemCategory::Bow),
+        "arcanestaff"       => Some(ItemCategory::ArcaneStaff),
+        "leatherheadgear"   => Some(ItemCategory::LeatherHeadgear),
+        "leathershoes"      => Some(ItemCategory::LeatherShoes),
+        "hammer"            => Some(ItemCategory::Hammer),
+        "spear"             => Some(ItemCategory::Spear),
+        "holystaff"         => Some(ItemCategory::HolyStaff),
+        "clotharmor"        => Some(ItemCategory::ClothArmor),
+        "plateheadgear"     => Some(ItemCategory::PlateHeadgear),
+        "mace"              => Some(ItemCategory::Mace),
+        "naturestaff"       => Some(ItemCategory::NatureStaff),
+        "firestaff"         => Some(ItemCategory::FireStaff),
+        "leatherarmor"      => Some(ItemCategory::LeatherArmor),
+        "clothheadgear"     => Some(ItemCategory::ClothHeadgear),
+        "axe"               => Some(ItemCategory::Axe),
+        "quarterstaff"      => Some(ItemCategory::Quarterstaff),
+        "froststaff"        => Some(ItemCategory::FrostStaff),
+        "plateshoes"        => Some(ItemCategory::PlateShoes),
+        "offhand"           => Some(ItemCategory::Offhand),
+        "crossbow"          => Some(ItemCategory::Crossbow),
+        "dagger"            => Some(ItemCategory::Dagger),
+        "cursedstaff"       => Some(ItemCategory::CursedStaff),
+        "platearmor"        => Some(ItemCategory::PlateArmor),
+        "clothshoes"        => Some(ItemCategory::ClothShoes),
+        _ => None,
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AccountProfile {
     /// Display name e.g. "Warrior", "Hunter", "Mage"

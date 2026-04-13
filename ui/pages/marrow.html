@@ -64,6 +64,25 @@
     .verdict-materials td { padding:3px 6px; }
     .verdict-materials tr:nth-child(even) td { background:#f8f7fc; }
     @media (max-width: 980px){.price-grid{grid-template-columns:repeat(2,1fr)}}
+    /* Alchemy session panel */
+    .alchemy-info-bar{display:flex;gap:16px;flex-wrap:wrap;padding:8px 12px;background:#f5f3ff;border-radius:8px;margin-bottom:8px;font-size:12px}
+    .alchemy-info-bar span{color:#555}.alchemy-info-bar strong{color:#6B46C1}
+    .alchemy-items-table{width:100%;border-collapse:collapse;font-size:13px;margin-bottom:4px}
+    .alchemy-items-table th{font-size:10px;text-transform:uppercase;letter-spacing:0.5px;color:#888;padding:4px 8px;text-align:left;border-bottom:1px solid #f0eef8}
+    .alchemy-items-table td{padding:7px 8px;border-bottom:0.5px solid #f8f7fc;vertical-align:middle}
+    .alchemy-items-table tr:last-child td{border-bottom:none}
+    .alchemy-profit-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:14px}
+    @media(max-width:900px){.alchemy-profit-grid{grid-template-columns:repeat(2,1fr)}}
+    .profit-card{background:#f8f7fc;border-radius:8px;padding:10px 12px}
+    .profit-card.green{background:#f0fdf4;border:1px solid #86efac}
+    .profit-card.red{background:#fef2f2;border:1px solid #fca5a5}
+    .profit-label{font-size:10px;color:#888;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px}
+    .profit-value{font-size:17px;font-weight:700;letter-spacing:-0.5px}
+    .profit-value.green{color:#166534}.profit-value.red{color:#b91c1c}
+    .alchemy-breakdown{font-size:12px;color:#555;background:#f8f7fc;border-radius:8px;padding:10px 14px;line-height:1.8}
+    .alchemy-breakdown .bd-row{display:flex;justify-content:space-between;border-bottom:0.5px solid #e5e3ef;padding:3px 0}
+    .alchemy-breakdown .bd-row:last-child{border:none;font-weight:600;font-size:13px}
+    .sell-price-input{width:130px;text-align:right}
   </style>
 </head>
 <body data-page="marrow">
@@ -98,6 +117,73 @@
         </div>
         <div id="gold-pill" class="gold-pill skeleton"><span class="gold-dot"></span><span>Gold: loading...</span></div>
       </div>
+
+      <!-- Received from Alchemy banner (hidden until sessionStorage has alchemy_session_id) -->
+      <section id="alchemy-session-panel" class="section-card" style="display:none;border-color:#7c3aed">
+        <div class="section-head" style="background:#f5f3ff">
+          <div style="display:flex;align-items:center;gap:8px;flex:1">
+            <span style="font-size:15px">⚗️</span>
+            <h2 style="color:#6B46C1">Craft Session — Profit Calculator</h2>
+            <span id="alchemy-session-badge" class="badge" style="background:#6B46C1;color:#fff"></span>
+          </div>
+          <button id="alchemy-dismiss" style="font-size:11px;color:#aaa;background:none;border:none;cursor:pointer">✕ Dismiss</button>
+        </div>
+        <div class="section-body">
+          <!-- Session info bar -->
+          <div class="alchemy-info-bar" id="alchemy-info-bar"></div>
+
+          <!-- Items crafted -->
+          <div style="font-size:11px;font-weight:600;color:#888;text-transform:uppercase;letter-spacing:0.5px;margin:10px 0 6px">Items Being Crafted</div>
+          <table class="alchemy-items-table" id="alchemy-items-table">
+            <thead>
+              <tr>
+                <th>Item</th>
+                <th style="text-align:right">Qty Out</th>
+                <th style="text-align:right">Runs</th>
+                <th style="text-align:right">Sell Price (silver)</th>
+                <th style="text-align:right">Revenue</th>
+              </tr>
+            </thead>
+            <tbody id="alchemy-items-body"></tbody>
+          </table>
+
+          <!-- Material costs (read from session) -->
+          <div style="font-size:11px;font-weight:600;color:#888;text-transform:uppercase;letter-spacing:0.5px;margin:14px 0 6px">Material Costs</div>
+          <table class="alchemy-items-table" id="alchemy-mats-table">
+            <thead>
+              <tr>
+                <th>Material</th>
+                <th style="text-align:right">To Buy</th>
+                <th style="text-align:right">Unit Price</th>
+                <th style="text-align:right">Total</th>
+              </tr>
+            </thead>
+            <tbody id="alchemy-mats-body"></tbody>
+          </table>
+
+          <!-- Fee inputs -->
+          <div style="display:flex;gap:16px;flex-wrap:wrap;margin-top:14px;align-items:flex-end">
+            <div>
+              <div style="font-size:11px;color:#888;margin-bottom:4px">Crafting Fee %</div>
+              <input id="alchemy-craft-fee" class="input" type="number" min="0" max="10" step="0.1" value="1.5" style="width:90px" />
+            </div>
+            <div style="font-size:11px;color:#666;padding-bottom:10px">
+              Listing fee: <strong>2.5%</strong> &nbsp;·&nbsp; Sales tax: <strong>3%</strong> &nbsp; (fixed, Albion standard)
+            </div>
+          </div>
+
+          <!-- Calculate button -->
+          <div style="margin-top:12px">
+            <button id="alchemy-calc-btn" class="btn-primary">Calculate Profit</button>
+          </div>
+
+          <!-- Profit result -->
+          <div id="alchemy-profit-result" style="display:none;margin-top:16px">
+            <div class="alchemy-profit-grid" id="alchemy-profit-grid"></div>
+            <div class="alchemy-breakdown" id="alchemy-breakdown"></div>
+          </div>
+        </div>
+      </section>
 
       <section id="section-price" class="section-card">
         <div class="section-head"><h2>Price Lookup</h2></div>

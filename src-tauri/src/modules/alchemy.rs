@@ -110,13 +110,14 @@ struct CraftResource {
 
 struct ItemMeta {
     display_name: String,
+    shopcategory: String,
     craft_amount: i64,
     craft_resources: Vec<CraftResource>,
 }
 
 async fn load_item_meta(pool: &SqlitePool, uniquename: &str) -> Result<ItemMeta, AlchemyError> {
     let row = sqlx::query(
-        "SELECT display_name, craftable, craft_amount, craft_resources FROM items WHERE uniquename = ?1"
+        "SELECT display_name, shopcategory, craftable, craft_amount, craft_resources FROM items WHERE uniquename = ?1"
     )
     .bind(uniquename)
     .fetch_optional(pool)
@@ -143,7 +144,11 @@ async fn load_item_meta(pool: &SqlitePool, uniquename: &str) -> Result<ItemMeta,
         .get::<Option<String>, _>("display_name")
         .unwrap_or_else(|| uniquename.to_string());
 
-    Ok(ItemMeta { display_name, craft_amount, craft_resources })
+    let shopcategory: String = row
+        .get::<Option<String>, _>("shopcategory")
+        .unwrap_or_default();
+
+    Ok(ItemMeta { display_name, shopcategory, craft_amount, craft_resources })
 }
 
 async fn load_display_name(pool: &SqlitePool, uniquename: &str) -> String {
@@ -169,16 +174,21 @@ pub async fn plan_session(
         return Err(AlchemyError::NoMaterials("no items in queue".to_string()));
     }
 
-    // Apply city bonus if account has any crafting lines configured
-    let has_city_bonus = !account.crafting_lines.is_empty();
-    let rrr = account.rrr(has_city_bonus);
-
     let mut planned_items: Vec<PlannedItem> = Vec::new();
+    // We compute per-item RRR because items may have different bonus eligibility.
     let mut material_totals: std::collections::HashMap<String, i64> = std::collections::HashMap::new();
+
 
     for queue_item in &items {
         let meta = load_item_meta(pool, &queue_item.uniquename).await?;
 
+        // Per-item city bonus: check if item's shopcategory maps to a category
+        // the account crafts in their home city.
+        let has_city_bonus = crate::settings::shopcategory_to_item_category(&meta.shopcategory)
+            .map(|cat| account.has_city_bonus_for(&cat))
+            .unwrap_or(false);
+
+        let rrr = account.rrr(has_city_bonus);
         let runs_needed = (queue_item.quantity_out as f64 / meta.craft_amount as f64).ceil() as i64;
 
         for mat in &meta.craft_resources {
@@ -212,6 +222,10 @@ pub async fn plan_session(
 
     let now = Utc::now().timestamp();
 
+    // Representative RRR for the session row: account with-bonus rrr if they
+    // have any crafting lines configured, otherwise base rrr (no bonus).
+    let session_rrr = account.rrr(!account.crafting_lines.is_empty());
+
     // Persist session
     let mut tx = pool.begin().await?;
 
@@ -222,7 +236,7 @@ pub async fn plan_session(
     .bind(&account.name)
     .bind(&account.city)
     .bind(if account.use_focus { 1i64 } else { 0i64 })
-    .bind(rrr)
+    .bind(session_rrr)
     .bind(now)
     .execute(&mut *tx)
     .await?;
@@ -266,13 +280,14 @@ pub async fn plan_session(
         account_name: account.name.clone(),
         city: account.city.clone(),
         use_focus: account.use_focus,
-        rrr,
-        rrr_pct: (rrr * 100.0 * 100.0).round() / 100.0,
+        rrr: session_rrr,
+        rrr_pct: (session_rrr * 100.0 * 100.0).round() / 100.0,
         items: planned_items,
         materials,
         created_at: now,
     })
 }
+
 
 /// Update the unit price for one material in a session and recompute total_cost.
 pub async fn set_material_price(
