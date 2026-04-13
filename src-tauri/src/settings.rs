@@ -47,6 +47,8 @@ pub enum ItemCategory {
     Mace, NatureStaff, FireStaff, LeatherArmor, ClothHeadgear, // Thetford
     Axe, Quarterstaff, FrostStaff, PlateShoes, Offhand,        // Martlock
     Crossbow, Dagger, CursedStaff, PlateArmor, ClothShoes,     // Bridgewatch
+    WarGloves, ShapeshifterStaff, GatheringGear, Tools, Food,  // Caerleon
+    Capes, Bags, Potions,                                       // Brecilien
 }
 
 /// Returns the city that gives a bonus for a given item category.
@@ -66,6 +68,11 @@ pub fn bonus_city_for(category: &ItemCategory) -> &'static str {
 
         ItemCategory::Crossbow | ItemCategory::Dagger | ItemCategory::CursedStaff |
         ItemCategory::PlateArmor | ItemCategory::ClothShoes => "Bridgewatch",
+
+        ItemCategory::WarGloves | ItemCategory::ShapeshifterStaff | ItemCategory::GatheringGear |
+        ItemCategory::Tools | ItemCategory::Food => "Caerleon",
+
+        ItemCategory::Capes | ItemCategory::Bags | ItemCategory::Potions => "Brecilien",
     }
 }
 
@@ -73,7 +80,10 @@ pub fn bonus_city_for(category: &ItemCategory) -> &'static str {
 /// Returns `None` for categories that don't have a royal-city specialisation bonus
 /// (e.g. consumables, resources, furniture, mounts).
 pub fn shopcategory_to_item_category(s: &str) -> Option<ItemCategory> {
-    match s.to_lowercase().as_str() {
+    // Normalize: lowercase and remove non-alphanumeric characters so values like "Plate Armor", "plate_armor",
+    // and "platearmor" all map correctly.
+    let key: String = s.to_lowercase().chars().filter(|c| c.is_alphanumeric()).collect();
+    match key.as_str() {
         "sword"             => Some(ItemCategory::Sword),
         "bow"               => Some(ItemCategory::Bow),
         "arcanestaff"       => Some(ItemCategory::ArcaneStaff),
@@ -99,11 +109,20 @@ pub fn shopcategory_to_item_category(s: &str) -> Option<ItemCategory> {
         "cursedstaff"       => Some(ItemCategory::CursedStaff),
         "platearmor"        => Some(ItemCategory::PlateArmor),
         "clothshoes"        => Some(ItemCategory::ClothShoes),
+        "wargloves"         => Some(ItemCategory::WarGloves),
+        "shapeshifterstaff" => Some(ItemCategory::ShapeshifterStaff),
+        "gatheringgear"     => Some(ItemCategory::GatheringGear),
+        "tools"             => Some(ItemCategory::Tools),
+        "food"              => Some(ItemCategory::Food),
+        "capes"             => Some(ItemCategory::Capes),
+        "bags"              => Some(ItemCategory::Bags),
+        "potions"           => Some(ItemCategory::Potions),
         _ => None,
     }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
 pub struct AccountProfile {
     /// Display name e.g. "Warrior", "Hunter", "Mage"
     pub name: String,
@@ -125,11 +144,11 @@ impl AccountProfile {
 
     /// Production bonus as a percentage.
     /// Base: 18% always in royal city.
-    /// City bonus item: +29% (total 47%).
+    /// City bonus item: +15% (specialization).
     /// Focus: adds enough to reach ~77% no-bonus or ~106% with-bonus.
     pub fn production_bonus_pct(&self, has_city_bonus: bool) -> f64 {
         let base = 18.0;
-        // City bonus is +15% (specialization), not +29%
+        // City bonus is +15% (specialization)
         let city_bonus = if has_city_bonus { 15.0 } else { 0.0 };
         let focus_bonus = if self.use_focus { 59.0 } else { 0.0 };
         base + city_bonus + focus_bonus
@@ -174,6 +193,7 @@ impl Default for AccountProfile {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
 pub struct Settings {
     pub language: String,
     pub theme: String,
@@ -191,19 +211,48 @@ impl Default for Settings {
             accounts: vec![
                 AccountProfile {
                     name: "Warrior".to_string(),
-                    crafting_lines: vec![],
+                    crafting_lines: vec![
+                        ItemCategory::Axe,
+                        ItemCategory::Crossbow,
+                        ItemCategory::Hammer,
+                        ItemCategory::Mace,
+                        ItemCategory::Sword,
+                        ItemCategory::Offhand,       // War Gloves -> Offhand
+                        ItemCategory::PlateHeadgear, // Plate Helmet
+                        ItemCategory::PlateArmor,
+                        ItemCategory::PlateShoes,
+                    ],
                     use_focus: false,
                     crafting_fee_pct: 3.0,
                 },
                 AccountProfile {
                     name: "Hunter".to_string(),
-                    crafting_lines: vec![],
+                    crafting_lines: vec![
+                        ItemCategory::Bow,
+                        ItemCategory::Dagger,
+                        ItemCategory::Quarterstaff,
+                        ItemCategory::Spear,
+                        ItemCategory::NatureStaff,
+                        ItemCategory::CursedStaff,   // Shapeshifter Staff -> map to CursedStaff
+                        ItemCategory::LeatherHeadgear, // Leather Helmet
+                        ItemCategory::LeatherArmor,
+                        ItemCategory::LeatherShoes,
+                    ],
                     use_focus: false,
                     crafting_fee_pct: 3.0,
                 },
                 AccountProfile {
                     name: "Mage".to_string(),
-                    crafting_lines: vec![],
+                    crafting_lines: vec![
+                        ItemCategory::ArcaneStaff,
+                        ItemCategory::CursedStaff,
+                        ItemCategory::FireStaff,
+                        ItemCategory::FrostStaff,
+                        ItemCategory::HolyStaff,
+                        ItemCategory::ClothHeadgear, // Cloth Helmet
+                        ItemCategory::ClothArmor,
+                        ItemCategory::ClothShoes,
+                    ],
                     use_focus: false,
                     crafting_fee_pct: 3.0,
                 },

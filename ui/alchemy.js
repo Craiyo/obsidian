@@ -209,6 +209,7 @@
           <input class="input qty-input" type="number" min="1" value="${item.quantity_out}"
             data-idx="${idx}" style="width:70px" />
         </td>
+        <td style="text-align:right">${item.best_city ? item.best_city : ''}</td>
         <td style="text-align:right">${item.craft_amount}</td>
         <td style="text-align:right">${Math.ceil(item.quantity_out / item.craft_amount)}</td>
         <td style="text-align:right">
@@ -252,6 +253,7 @@
       display_name: comboSelectedDisplay,
       craft_amount: 1, // placeholder; real value comes from DB after planning
       quantity_out: qty,
+      best_city: null,
     });
 
     // Reset combo
@@ -289,12 +291,18 @@
         throw new Error(err.message || `Error ${r.status}`);
       }
       const session = await r.json();
-      currentSessionId = session.session_id;
+      console.log('Plan response items:', session.items);
+      // Normalize session id to a Number to avoid NaN fetches
+      currentSessionId = Number(session.session_id != null ? session.session_id : session.id);
+      if (!Number.isFinite(currentSessionId)) currentSessionId = null;
 
       // Update queue with real craft_amounts from the planned items
       session.items.forEach(pi => {
         const qi = queue.find(q => q.uniquename === pi.uniquename);
-        if (qi) qi.craft_amount = pi.craft_amount;
+        if (qi) {
+          qi.craft_amount = pi.craft_amount;
+          qi.best_city = pi.best_city || qi.best_city || null;
+        }
       });
       renderQueue();
 
@@ -363,10 +371,12 @@
           if (costCell) costCell.textContent = fmt(total) + " silver";
 
           // Reload full session to get updated total
-          const updated = await fetch(`${BASE}/api/v1/alchemy/sessions/${sid}`);
-          if (updated.ok) {
-            const s = await updated.json();
-            updateTotalCost(s.materials);
+          if (Number.isFinite(sid)) {
+            const updated = await fetch(`${BASE}/api/v1/alchemy/sessions/${sid}`);
+            if (updated.ok) {
+              const s = await updated.json();
+              updateTotalCost(s.materials);
+            }
           }
         } catch { /* ignore transient errors */ }
       });
@@ -437,12 +447,14 @@
       list.querySelectorAll(".hist-row").forEach(row => {
         row.addEventListener("click", async () => {
           const id = Number(row.dataset.id);
+          if (!Number.isFinite(id)) return;
           try {
             const r = await fetch(`${BASE}/api/v1/alchemy/sessions/${id}`);
             if (!r.ok) throw new Error();
             const session = await r.json();
             // Backwards-compat: accept either session.session_id or session.id
-            currentSessionId = session.session_id != null ? session.session_id : session.id;
+            currentSessionId = Number(session.session_id != null ? session.session_id : session.id);
+            if (!Number.isFinite(currentSessionId)) currentSessionId = null;
             renderShoppingList(session);
           } catch { /* ignore */ }
         });

@@ -69,15 +69,13 @@ async function initSettings() {
     grid.innerHTML = '';
     const accounts = settings.accounts || [];
     for (let i = 0; i < 3; i++) {
-      const acc = accounts[i] || { name: `Account ${i+1}`, city: 'Lymhurst', crafting_lines: [], use_focus: false, crafting_fee_pct: 3 };
+      const acc = accounts[i] || { name: `Account ${i+1}`, crafting_lines: [] };
       const card = document.createElement('div');
       card.className = 'account-card';
       card.innerHTML = `
         <h3>Account ${i+1}</h3>
         <div class="field"><label>Name</label><input class="acc-name" data-idx="${i}" value="${acc.name}" /></div>
         <div class="field"><label>Crafting lines (one per line)</label><textarea class="acc-lines" data-idx="${i}" rows="5">${(acc.crafting_lines || []).map(l => l).join('\n')}</textarea></div>
-        <div class="field"><label>Focus</label><input type="checkbox" class="acc-focus" data-idx="${i}" ${acc.use_focus ? 'checked' : ''} /></div>
-        <div class="field"><label>Crafting fee (%)</label><input class="acc-fee" data-idx="${i}" type="number" value="${acc.crafting_fee_pct}" /></div>
       `;
       grid.appendChild(card);
     }
@@ -89,11 +87,9 @@ async function initSettings() {
     const accounts = [];
     document.querySelectorAll('.account-card').forEach((card, idx) => {
       const name = card.querySelector('.acc-name').value;
-      const use_focus = card.querySelector('.acc-focus').checked;
-      const crafting_fee_pct = Number(card.querySelector('.acc-fee').value || 3);
       const linesText = card.querySelector('.acc-lines').value || '';
       const crafting_lines = linesText.split('\n').map(s => s.trim()).filter(Boolean);
-      accounts.push({ name, crafting_lines, use_focus, crafting_fee_pct });
+      accounts.push({ name, crafting_lines });
     });
 
     const payload = {

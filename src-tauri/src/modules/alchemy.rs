@@ -36,7 +36,9 @@ pub struct SessionItem {
     pub craft_amount: i64,
     pub runs_needed: i64,
     pub rrr: f64,
+    pub best_city: Option<String>,
 }
+
 
 #[derive(Debug, Serialize)]
 pub struct MaterialRow {
@@ -136,13 +138,24 @@ pub async fn plan_session(pool: &SqlitePool, account: &crate::settings::AccountP
         // Insert session item with sourced craft_amount and runs_needed
         craft_amount = craft_amount.max(1);
         let runs_needed = ((it.quantity_out as f64 / craft_amount as f64).ceil() as i64).max(1);
-        sqlx::query("INSERT INTO alchemy_session_items (session_id, uniquename, display_name, quantity_out, craft_amount, runs_needed) VALUES (?, ?, ?, ?, ?, ?)")
+        let best_city = if let Some(ref sc) = shopcategory_opt {
+            if let Some(cat) = crate::settings::shopcategory_to_item_category(sc) {
+                Some(crate::settings::bonus_city_for(&cat).to_string())
+            } else {
+                None
+            }
+        } else {
+            None
+        };
+
+        sqlx::query("INSERT INTO alchemy_session_items (session_id, uniquename, display_name, quantity_out, craft_amount, runs_needed, best_city) VALUES (?, ?, ?, ?, ?, ?, ?)")
             .bind(session_id)
             .bind(&it.uniquename)
             .bind(&display_name)
             .bind(it.quantity_out)
             .bind(craft_amount)
             .bind(runs_needed)
+            .bind(best_city.clone())
             .execute(&mut *tx)
             .await?;
 
@@ -187,18 +200,24 @@ pub async fn plan_session(pool: &SqlitePool, account: &crate::settings::AccountP
             // compute quantity_needed using account profile RRR logic for this item
             let qty_needed = account.materials_to_buy(it.quantity_out, craft_amount, mat_count, has_city_bonus_for_item);
             let display_name = mat_id.clone();
-            // Upsert material rows so quantities for the same material aggregate across items
-            sqlx::query(
-                "INSERT INTO alchemy_session_materials (session_id, uniquename, display_name, quantity_needed, unit_price, total_cost)
-                 VALUES (?, ?, ?, ?, NULL, NULL)
-                 ON CONFLICT(session_id, uniquename) DO UPDATE SET quantity_needed = quantity_needed + excluded.quantity_needed"
-            )
+            // Upsert material rows so quantities for the same material aggregate across items.
+            // Some deployments may not have the UNIQUE(session_id, uniquename) constraint (older DB),
+            // which makes ON CONFLICT fail. Use a safe two-step update-then-insert pattern.
+            let upd = sqlx::query("UPDATE alchemy_session_materials SET quantity_needed = quantity_needed + ? WHERE session_id = ? AND uniquename = ?")
+                .bind(qty_needed)
                 .bind(session_id)
                 .bind(&mat_id)
-                .bind(&display_name)
-                .bind(qty_needed)
                 .execute(&mut *tx)
                 .await?;
+            if upd.rows_affected() == 0 {
+                sqlx::query("INSERT INTO alchemy_session_materials (session_id, uniquename, display_name, quantity_needed, unit_price, total_cost) VALUES (?, ?, ?, ?, NULL, NULL)")
+                    .bind(session_id)
+                    .bind(&mat_id)
+                    .bind(&display_name)
+                    .bind(qty_needed)
+                    .execute(&mut *tx)
+                    .await?;
+            }
         }
 
         // Determine per-item RRR (considering whether this item benefits from city bonus)
@@ -220,6 +239,7 @@ pub async fn plan_session(pool: &SqlitePool, account: &crate::settings::AccountP
             craft_amount,
             runs_needed,
             rrr: item_rrr,
+            best_city: best_city.clone(),
         });
     }
 
@@ -230,6 +250,28 @@ pub async fn plan_session(pool: &SqlitePool, account: &crate::settings::AccountP
         .bind(session_id)
         .fetch_all(pool)
         .await?;
+
+    // Optional: load session items' best_city from DB when preparing response (not strictly necessary here
+    // because we already built session_items while inserting, but include DB read path for consistency).
+    let item_rows = sqlx::query("SELECT uniquename, display_name, quantity_out, craft_amount, runs_needed, best_city FROM alchemy_session_items WHERE session_id = ?")
+        .bind(session_id)
+        .fetch_all(pool)
+        .await?;
+
+    // If session_items vector is empty (shouldn't be), populate from DB rows
+    if session_items.is_empty() {
+        for r in item_rows {
+            session_items.push(SessionItem {
+                uniquename: r.get("uniquename"),
+                display_name: r.get("display_name"),
+                quantity_out: r.get("quantity_out"),
+                craft_amount: r.get::<i64, _>("craft_amount"),
+                runs_needed: r.get::<i64, _>("runs_needed"),
+                rrr: account.rrr(false),
+                best_city: r.get::<Option<String>, _>("best_city"),
+            });
+        }
+    }
 
     let mut materials_out = Vec::new();
     for r in material_rows {
@@ -280,7 +322,7 @@ pub async fn load_session(pool: &SqlitePool, id: i64) -> Result<PlanResponse, Al
     let use_focus = use_focus_i != 0;
     let rrr: f64 = row.get("rrr");
 
-    let item_rows = sqlx::query("SELECT uniquename, display_name, quantity_out, craft_amount, runs_needed FROM alchemy_session_items WHERE session_id = ?")
+    let item_rows = sqlx::query("SELECT uniquename, display_name, quantity_out, craft_amount, runs_needed, best_city FROM alchemy_session_items WHERE session_id = ?")
         .bind(id)
         .fetch_all(pool)
         .await?;
@@ -292,8 +334,9 @@ pub async fn load_session(pool: &SqlitePool, id: i64) -> Result<PlanResponse, Al
         let quantity_out: i64 = r.get("quantity_out");
         let craft_amount: i64 = r.get("craft_amount");
         let runs_needed: i64 = r.get("runs_needed");
+        let best_city: Option<String> = r.get::<Option<String>, _>("best_city");
         // No per-item city-bonus context here — fall back to session-level RRR
-        items.push(SessionItem { uniquename, display_name, quantity_out, craft_amount, runs_needed, rrr: rrr });
+        items.push(SessionItem { uniquename, display_name, quantity_out, craft_amount, runs_needed, rrr: rrr, best_city });
     }
 
     let material_rows = sqlx::query("SELECT uniquename, display_name, quantity_needed, unit_price, total_cost FROM alchemy_session_materials WHERE session_id = ?")
