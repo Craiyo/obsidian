@@ -2,6 +2,7 @@ use axum::{extract::{Query, Path, State}, routing::get, Json, Router};
 use serde::Deserialize;
 use crate::api::{ApiError, AppState};
 use crate::modules::marrow;
+use crate::modules::marrow_recommend;
 
 #[derive(Debug, Deserialize)]
 pub struct SearchQuery {
@@ -13,19 +14,50 @@ pub struct ItemsQuery {
     pub ids: String,
 }
 
+#[derive(Debug, Deserialize)]
+pub struct RecommendQuery {
+    pub city: String,
+    pub quality: Option<i64>,
+    pub days: Option<i64>,
+}
+
 pub fn router() -> Router<AppState> {
     Router::new()
         .route("/search", get(search))
         .route("/items", get(items))
         .route("/gold", get(gold))
-        .route("/recommend/:id", get(recommend_stub))
+        .route("/recommend/:id", get(recommend_item))
 }
 
-async fn recommend_stub() -> Json<serde_json::Value> {
-    Json(serde_json::json!({
-        "recommended": false,
-        "reason": "Marrow Engine analysis is currently disabled (Zero Code Slate)."
-    }))
+async fn recommend_item(
+    State(state): State<AppState>,
+    Path(id): Path<String>,
+    Query(query): Query<RecommendQuery>,
+) -> Result<Json<marrow_recommend::RecommendDecision>, ApiError> {
+    let quality = query.quality.unwrap_or(1);
+    let days = query.days.unwrap_or(14);
+
+    // Find account whose city matches the requested city, fall back to first account
+    let account = state.settings.accounts.iter()
+        .find(|a| a.city.eq_ignore_ascii_case(&query.city))
+        .or_else(|| state.settings.accounts.first())
+        .cloned()
+        .unwrap_or_default();
+
+    let decision = marrow_recommend::recommend_item(
+        &state.db,
+        &state.http,
+        state.albion_server,
+        &id,
+        &query.city,
+        quality,
+        days,
+        &account,
+    )
+    .await
+    .map_err(|e| ApiError::new(axum::http::StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+
+    Ok(Json(decision))
 }
 
 async fn search(
@@ -53,14 +85,14 @@ async fn items(
 async fn gold(
     State(state): State<AppState>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
-    // Basic gold price fetch (External API)
-    let url = "https://west.albion-onlinedataproject.com/api/v2/stats/gold.json?count=1";
-    let client = reqwest::Client::new();
-    let points: Vec<serde_json::Value> = client.get(url).send().await
+    let base = state.albion_server.base_url();
+    let url = format!("{base}/api/v2/stats/gold.json?count=1");
+    let points: Vec<serde_json::Value> = state.http.get(&url).send().await
         .map_err(|e| ApiError::new(axum::http::StatusCode::BAD_GATEWAY, e.to_string()))?
         .json().await
         .map_err(|e| ApiError::new(axum::http::StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
-    
-    let p = points.into_iter().next().ok_or(ApiError::new(axum::http::StatusCode::NOT_FOUND, "Gold data unavailable"))?;
+
+    let p = points.into_iter().next()
+        .ok_or(ApiError::new(axum::http::StatusCode::NOT_FOUND, "Gold data unavailable"))?;
     Ok(Json(p))
 }

@@ -5,6 +5,53 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Obsidian — Settings</title>
   <link rel="stylesheet" href="../styles/main.css" />
+  <style>
+    .accounts-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 16px;
+    }
+    .account-card {
+      background: var(--surface-2, #1a1a2e);
+      border: 1px solid var(--border, #333);
+      border-radius: 8px;
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .account-card h3 {
+      margin: 0 0 4px;
+      font-size: 13px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--accent, #a855f7);
+    }
+    .crafting-lines-group {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      max-height: 160px;
+      overflow-y: auto;
+      padding-right: 4px;
+    }
+    .crafting-lines-group label {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 12px;
+      cursor: pointer;
+    }
+    .crafting-lines-group label input[type="checkbox"] {
+      accent-color: var(--accent, #a855f7);
+    }
+    .field small {
+      color: var(--muted, #888);
+      font-size: 11px;
+      display: block;
+      margin-top: 2px;
+    }
+  </style>
 </head>
 <body data-page="settings">
   <div class="app">
@@ -32,23 +79,38 @@
         <h1>Settings</h1>
         <span class="badge">v1.0</span>
       </div>
+
       <section class="section"><h2>General</h2><div class="form-grid">
   <div class="field"><label>Language</label><input id="settings-language" type="text" /></div>
   <div class="field"><label>Theme</label><input id="settings-theme" type="text" /></div>
+  <div class="field"><label>Albion Server</label>
+    <select id="settings-server">
+      <option value="americas">Americas (West)</option>
+      <option value="asia">Asia (East)</option>
+      <option value="europe">Europe</option>
+    </select>
+  </div>
 </div></section>
-<section class="section"><h2>Market & Crafting</h2><div class="form-grid">
-  <div class="field"><label>Default City</label><input id="settings-city" type="text" /></div>
-  <div class="field"><label>Return Rate %</label><input id="settings-return-rate" type="number" step="0.1" /></div>
-  <div class="field"><label>Crafting Fee %</label><input id="settings-fee" type="number" step="0.1" /></div>
-</div></section>
-<section class="section"><h2>Seance Defaults</h2><div class="form-grid">
+
+      <section class="section"><h2>Account Profiles</h2>
+        <p class="muted" style="margin-bottom:12px;font-size:12px;">
+          Configure up to 3 crafting accounts. Marrow and Alchemy will auto-derive RRR and fees from these profiles.
+        </p>
+        <div class="accounts-grid" id="accounts-grid">
+          <!-- Rendered dynamically by app.js -->
+        </div>
+      </section>
+
+      <section class="section"><h2>Seance Defaults</h2><div class="form-grid">
   <div class="field"><label>Party Size</label><input id="settings-party-size" type="number" /></div>
   <div class="field"><label>Split Type</label><input id="settings-split-type" type="text" /></div>
 </div></section>
-<section class="section"><h2>Actions</h2><div class="grid">
+
+      <section class="section"><h2>Actions</h2><div class="grid">
   <div class="card"><h3>Save Settings</h3><p class="muted">Persist defaults locally.</p><button id="settings-save" class="btn">Save</button></div>
 </div></section>
-<section class="section"><h2>Output</h2><pre id="settings-output" class="card"></pre></section>
+
+      <section class="section"><h2>Output</h2><pre id="settings-output" class="card"></pre></section>
       <div class="footer">Obsidian UI — undead ritual v1 draft</div>
     </main>
   </div>

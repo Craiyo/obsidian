@@ -26,30 +26,27 @@ pub mod wraith;
 pub struct AppState {
     pub db: SqlitePool,
     pub settings_path: PathBuf,
+    pub http: reqwest::Client,
     pub albion_server: crate::settings::AlbionServer,
-    pub app_handle: tauri::AppHandle,
-
-    // Cached crafting parameters for handlers
-    pub return_rate_pct: f64,
-    pub crafting_fee_pct: f64,
+    pub settings: crate::settings::Settings,
 }
 
 impl AppState {
     pub fn new(
         db: SqlitePool,
         settings_path: PathBuf,
-        albion_server: crate::settings::AlbionServer,
-        app_handle: tauri::AppHandle,
-        return_rate_pct: f64,
-        crafting_fee_pct: f64,
+        settings: crate::settings::Settings,
     ) -> Self {
+        let http = reqwest::Client::builder()
+            .timeout(std::time::Duration::from_secs(10))
+            .build()
+            .expect("failed to create reqwest client");
         Self {
+            albion_server: settings.albion_server,
             db,
             settings_path,
-            albion_server,
-            app_handle,
-            return_rate_pct,
-            crafting_fee_pct,
+            http,
+            settings,
         }
     }
 }
@@ -100,8 +97,6 @@ impl From<crate::modules::seance::SeanceError> for ApiError {
         }
     }
 }
-
-// Redacted: Marrow & Alchemy error handlers removed
 
 pub async fn serve(state: AppState) -> Result<(), std::io::Error> {
     let app = Router::new()

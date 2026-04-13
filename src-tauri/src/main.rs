@@ -27,10 +27,7 @@ fn main() {
             let state = api::AppState::new(
                 pool.clone(),
                 settings_path,
-                settings.albion_server,
-                app_handle.clone(),
-                settings.return_rate_pct,
-                settings.crafting_fee_pct,
+                settings,
             );
 
             // Clone for background seeding
