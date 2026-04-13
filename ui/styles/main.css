@@ -59,6 +59,18 @@ a { color: inherit; text-decoration: none; }
   box-shadow: 0 0 12px rgba(127, 86, 217, 0.8);
 }
 
+.logo img.logo-img {
+  height: 32px;
+  width: auto;
+  display: block;
+}
+
+.sidebar-logo img.logo-img {
+  height: 36px;
+  width: auto;
+  display: block;
+}
+
 .nav {
   display: flex;
   flex-direction: column;
