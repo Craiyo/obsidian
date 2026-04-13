@@ -350,7 +350,7 @@ pub async fn plan_session(pool: &SqlitePool, account: &crate::settings::AccountP
         items: session_items,
         materials: materials_out,
         account_name: account.name.clone(),
-        city: String::new(),
+        city: session_city,
         rrr_pct: session_rrr,
         use_focus: account.use_focus,
     })
