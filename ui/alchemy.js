@@ -317,6 +317,7 @@
       let session = await r.json();
       session = normalizeSession(session);
       console.log('Plan response items:', session.items);
+      console.log('Plan response session id / city:', session.session_id, session.city);
       // Normalize session id to a Number to avoid NaN fetches
       currentSessionId = session.session_id;
 

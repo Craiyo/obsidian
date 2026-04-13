@@ -107,6 +107,8 @@ pub async fn plan_session(pool: &SqlitePool, account: &crate::settings::AccountP
         }
     }
     let session_city = city_counts.into_iter().max_by_key(|(_, c)| *c).map(|(k, _)| k).unwrap_or_else(|| String::new());
+    println!("[alchemy] plan_session: computed city_counts={:?}", city_counts);
+    println!("[alchemy] plan_session: chosen session_city='{}'", session_city);
 
     let res = sqlx::query("INSERT INTO alchemy_sessions (account_name, city, use_focus, rrr, created_at, sent_to_marrow) VALUES (?, ?, ?, ?, ?, 0)")
         .bind(&account.name)
@@ -118,6 +120,7 @@ pub async fn plan_session(pool: &SqlitePool, account: &crate::settings::AccountP
         .await?;
 
     let session_id = res.last_insert_rowid();
+    println!("[alchemy] plan_session: inserted session_id={} city='{}'", session_id, session_city);
 
     let mut session_items = Vec::new();
     // For each requested item, persist the item row and attempt to derive its recipe from the items table
@@ -267,6 +270,7 @@ pub async fn plan_session(pool: &SqlitePool, account: &crate::settings::AccountP
     }
 
     tx.commit().await?;
+    println!("[alchemy] plan_session: transaction committed for session_id={}", session_id);
 
     // Load materials to include in response
     let material_rows = sqlx::query("SELECT uniquename, display_name, quantity_needed, unit_price, total_cost FROM alchemy_session_materials WHERE session_id = ?")
