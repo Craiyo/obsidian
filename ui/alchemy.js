@@ -178,6 +178,30 @@
     });
   }
 
+  // Normalize session objects from different API shapes (backwards compat)
+  function normalizeSession(sess) {
+    if (!sess || typeof sess !== 'object') return sess;
+    const out = Object.assign({}, sess);
+    // session id
+    out.session_id = Number(sess.session_id != null ? sess.session_id : sess.id);
+    if (!Number.isFinite(out.session_id)) out.session_id = null;
+    // rrr: prefer fractional rrr, otherwise derive from rrr_pct
+    let rrrFrac = null;
+    if (sess.rrr != null) rrrFrac = Number(sess.rrr);
+    else if (sess.rrr_pct != null) rrrFrac = Number(sess.rrr_pct) / 100.0;
+    out.rrr = Number.isFinite(rrrFrac) ? rrrFrac : null;
+    out.rrr_pct = out.rrr != null ? out.rrr * 100 : null; // numeric percent (e.g., 12.3)
+    // Ensure booleans
+    out.use_focus = Boolean(sess.use_focus);
+    out.items = Array.isArray(sess.items) ? sess.items : [];
+    out.materials = Array.isArray(sess.materials) ? sess.materials : [];
+    out.account_name = sess.account_name || sess.account || '';
+    out.total_cost = sess.total_cost != null ? sess.total_cost : null;
+    out.city = sess.city || '';
+    out.created_at = sess.created_at || sess.createdAt || sess.created || Math.floor(Date.now() / 1000);
+    return out;
+  }
+
   // ── Queue management ──────────────────────────────────────────────────────
   function renderQueue() {
     const tbody = $("alchemy-queue-body");
@@ -290,11 +314,11 @@
         const err = await r.json().catch(() => ({}));
         throw new Error(err.message || `Error ${r.status}`);
       }
-      const session = await r.json();
+      let session = await r.json();
+      session = normalizeSession(session);
       console.log('Plan response items:', session.items);
       // Normalize session id to a Number to avoid NaN fetches
-      currentSessionId = Number(session.session_id != null ? session.session_id : session.id);
-      if (!Number.isFinite(currentSessionId)) currentSessionId = null;
+      currentSessionId = session.session_id;
 
       // Update queue with real craft_amounts from the planned items
       session.items.forEach(pi => {
@@ -427,22 +451,25 @@
         return;
       }
       list.className = "";
-      list.innerHTML = sessions.map(s => `
-        <div class="hist-row" data-id="${s.id}">
+      list.innerHTML = sessions.map(s0 => {
+        const s = normalizeSession(s0);
+        return `
+        <div class="hist-row" data-id="${s.session_id}">
           <div>
-            <div style="font-weight:500">${s.account_name} — ${s.city}</div>
+            <div style="font-weight:500">${s.account_name} — ${s.city || ''}</div>
             <div class="hist-row-meta">
-              ${s.item_count} item${s.item_count !== 1 ? "s" : ""} ·
-              RRR ${(s.rrr * 100).toFixed(1)}% ·
+              ${s.item_count || (s.items ? s.items.length : 0)} item${(s.item_count || (s.items ? s.items.length : 0)) !== 1 ? "s" : ""} ·
+              RRR ${s.rrr_pct != null ? s.rrr_pct.toFixed(1) : '—'}% ·
               ${s.total_cost != null ? fmt(Math.round(s.total_cost)) + " silver total" : "prices pending"} ·
               ${s.sent_to_marrow ? "✓ sent to Marrow" : "draft"}
             </div>
           </div>
-          <div style="font-size:11px;color:#aaa">
-            ${new Date(s.created_at * 1000).toLocaleDateString()}
+          <div style="font-size:11px;color:#aaa;display:flex;gap:8px;align-items:center">
+            <div>${new Date(s.created_at * 1000).toLocaleDateString()}</div>
+            <button class="hist-delete" data-id="${s.session_id}" style="background:#fff;border:0;color:#c00;cursor:pointer;font-size:12px;padding:4px 6px;border-radius:6px">Delete</button>
           </div>
         </div>
-      `).join("");
+      `}).join("");
 
       list.querySelectorAll(".hist-row").forEach(row => {
         row.addEventListener("click", async () => {
@@ -451,12 +478,34 @@
           try {
             const r = await fetch(`${BASE}/api/v1/alchemy/sessions/${id}`);
             if (!r.ok) throw new Error();
-            const session = await r.json();
-            // Backwards-compat: accept either session.session_id or session.id
-            currentSessionId = Number(session.session_id != null ? session.session_id : session.id);
-            if (!Number.isFinite(currentSessionId)) currentSessionId = null;
+            let session = await r.json();
+            session = normalizeSession(session);
+            currentSessionId = session.session_id;
             renderShoppingList(session);
           } catch { /* ignore */ }
+        });
+      });
+
+      // Delete handlers
+      list.querySelectorAll('.hist-delete').forEach(btn => {
+        btn.addEventListener('click', async (ev) => {
+          ev.stopPropagation();
+          const id = Number(btn.dataset.id);
+          if (!Number.isFinite(id)) return;
+          if (!confirm('Delete this session? This cannot be undone.')) return;
+          try {
+            const r = await fetch(`${BASE}/api/v1/alchemy/sessions/${id}`, { method: 'DELETE' });
+            if (!r.ok) throw new Error();
+            // If deleted current session, clear panel
+            if (currentSessionId === id) {
+              currentSessionId = null;
+              $('alchemy-shopping-section').style.display = 'none';
+            }
+            // Reload history
+            loadHistory();
+          } catch (e) {
+            alert('Failed to delete session');
+          }
         });
       });
     } catch {
