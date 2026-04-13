@@ -93,20 +93,54 @@ pub async fn plan_session(pool: &SqlitePool, account: &crate::settings::AccountP
     // Determine best session city by counting recommended best_city across requested items
     let mut city_counts: std::collections::HashMap<String, i64> = std::collections::HashMap::new();
     for it in &items {
+        println!("[alchemy] plan_session: checking item '{}'", it.uniquename);
         if let Some(row) = sqlx::query("SELECT shopcategory FROM items WHERE uniquename = ?")
             .bind(&it.uniquename)
             .fetch_optional(&mut *tx)
             .await?
         {
-            if let Some(sc) = row.try_get::<Option<String>, _>("shopcategory")? {
-                if let Some(cat) = crate::settings::shopcategory_to_item_category(&sc) {
+            let sc: Option<String> = row.try_get("shopcategory")?;
+            println!("[alchemy] plan_session: db shopcategory for '{}' = {:?}", it.uniquename, sc);
+            if let Some(sc_val) = sc {
+                // Try normal mapping first
+                let mut cat_opt = crate::settings::shopcategory_to_item_category(&sc_val);
+                // Fallback heuristics based on uniquename if mapping missing
+                if cat_opt.is_none() {
+                    let lname = it.uniquename.to_lowercase();
+                    if lname.contains("plate") {
+                        cat_opt = Some(crate::settings::ItemCategory::PlateArmor);
+                    } else if lname.contains("leather") {
+                        cat_opt = Some(crate::settings::ItemCategory::LeatherArmor);
+                    } else if lname.contains("cloth") {
+                        cat_opt = Some(crate::settings::ItemCategory::ClothArmor);
+                    } else if lname.contains("axe") {
+                        cat_opt = Some(crate::settings::ItemCategory::Axe);
+                    } else if lname.contains("bow") {
+                        cat_opt = Some(crate::settings::ItemCategory::Bow);
+                    } else if lname.contains("spear") {
+                        cat_opt = Some(crate::settings::ItemCategory::Spear);
+                    } else if lname.contains("hammer") {
+                        cat_opt = Some(crate::settings::ItemCategory::Hammer);
+                    } else if lname.contains("dagger") {
+                        cat_opt = Some(crate::settings::ItemCategory::Dagger);
+                    } else if lname.contains("crossbow") {
+                        cat_opt = Some(crate::settings::ItemCategory::Crossbow);
+                    }
+                }
+
+                if let Some(cat) = cat_opt {
                     let city = crate::settings::bonus_city_for(&cat).to_string();
-                    *city_counts.entry(city).or_insert(0) += 1;
+                    *city_counts.entry(city.clone()).or_insert(0) += 1;
+                    println!("[alchemy] plan_session: mapped shopcategory '{}' -> category {:?}, city '{}'", sc_val, cat, city);
+                } else {
+                    println!("[alchemy] plan_session: shopcategory '{}' not mapped to ItemCategory", sc_val);
                 }
             }
+        } else {
+            println!("[alchemy] plan_session: item '{}' not found in items table", it.uniquename);
         }
     }
-    let session_city = city_counts.into_iter().max_by_key(|(_, c)| *c).map(|(k, _)| k).unwrap_or_else(|| String::new());
+    let session_city = city_counts.iter().max_by_key(|(_, c)| *c).map(|(k, _)| k.clone()).unwrap_or_else(|| String::new());
     println!("[alchemy] plan_session: computed city_counts={:?}", city_counts);
     println!("[alchemy] plan_session: chosen session_city='{}'", session_city);
 
