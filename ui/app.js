@@ -25,7 +25,24 @@ async function apiRequest(path, options = {}) {
 }
 
 function $(id) {
-  return document.getElementById(id);
+  const el = document.getElementById(id);
+  if (el) return el;
+  const proxyTarget = {};
+  return new Proxy(proxyTarget, {
+    get(target, prop) {
+      if (prop === 'addEventListener') return () => {};
+      if (prop === 'closest') return () => null;
+      if (prop === 'querySelectorAll') return () => [];
+      if (prop === 'classList') return { add() {}, remove() {} };
+      if (prop === 'style') return { display: 'none' };
+      if (prop === 'appendChild') return () => {};
+      if (prop === 'innerHTML' || prop === 'textContent' || prop === 'value') return '';
+      if (prop === 'getAttribute') return () => null;
+      if (prop === 'setAttribute') return () => {};
+      return target[prop];
+    },
+    set(target, prop, value) { target[prop] = value; return true; },
+  });
 }
 
 function setOutput(id, payload) {

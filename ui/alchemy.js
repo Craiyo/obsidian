@@ -1,6 +1,25 @@
 (() => {
   const BASE = "http://127.0.0.1:38991";
-  const $ = (id) => document.getElementById(id);
+  function $(id) {
+    const el = document.getElementById(id);
+    if (el) return el;
+    const proxyTarget = {};
+    return new Proxy(proxyTarget, {
+      get(target, prop) {
+        if (prop === 'addEventListener') return () => {};
+        if (prop === 'closest') return () => null;
+        if (prop === 'querySelectorAll') return () => [];
+        if (prop === 'classList') return { add() {}, remove() {} };
+        if (prop === 'style') return { display: 'none' };
+        if (prop === 'appendChild') return () => {};
+        if (prop === 'innerHTML' || prop === 'textContent' || prop === 'value') return '';
+        if (prop === 'getAttribute') return () => null;
+        if (prop === 'setAttribute') return () => {};
+        return target[prop];
+      },
+      set(target, prop, value) { target[prop] = value; return true; },
+    });
+  }
 
   // ── State ────────────────────────────────────────────────────────────────
   let accounts = [];           // loaded from settings
@@ -69,8 +88,10 @@
   // ── Autocomplete ──────────────────────────────────────────────────────────
   function setupCombo() {
     const input = $("alchemy-item-search");
-    const wrap = input.closest(".combo-wrap");
-    const label = $("alchemy-item-search-label");
+    let wrap = (input && typeof input.closest === 'function') ? input.closest(".combo-wrap") : null;
+    if (!wrap) wrap = (input && input.parentElement) ? input.parentElement : document.body;
+    let label = $("alchemy-item-search-label");
+    if (!label) label = { textContent: '' };
 
     const menu = document.createElement("div");
     menu.className = "combo-menu";

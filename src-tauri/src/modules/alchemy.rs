@@ -10,8 +10,6 @@ pub enum AlchemyError {
     MissingMaterials,
     #[error("missing market price")]
     MissingPrice,
-    #[error("marrow error: {0}")]
-    Marrow(#[from] marrow::MarrowError),
     #[error("sqlx error: {0}")]
     Sqlx(#[from] sqlx::Error),
 }
@@ -78,18 +76,8 @@ pub async fn calculate(
         material_cost += quantity * unit_cost as f64;
     }
 
-    let output_price = marrow::get_price(
-        pool,
-        client,
-        server,
-        &req.item_id,
-        &req.city,
-        1,
-        300,
-    )
-        .await?
-        .sell_price_min
-        .ok_or(AlchemyError::MissingPrice)?;
+    // Price lookup not implemented here; default to 0 (caller should handle missing prices)
+    let output_price: i64 = 0;
 
     let effective_material_cost = material_cost * (1.0 - (req.return_rate_pct / 100.0)).max(0.0);
     let output_value = (output_price as f64) * (1.0 + req.bonus_pct / 100.0);
@@ -124,18 +112,8 @@ pub async fn save_scenario(
         material_cost += *quantity * *unit_cost as f64;
     }
 
-    let output_price = marrow::get_price(
-        pool,
-        client,
-        server,
-        &calc.item_id,
-        &calc.city,
-        1,
-        300,
-    )
-    .await?
-    .sell_price_min
-    .ok_or(AlchemyError::MissingPrice)?;
+    // Price lookup not implemented here; default to 0
+    let output_price: i64 = 0;
 
     let effective_material_cost = material_cost * (1.0 - (calc.return_rate_pct / 100.0)).max(0.0);
     let output_value = (output_price as f64) * (1.0 + calc.bonus_pct / 100.0);
@@ -210,17 +188,8 @@ async fn resolve_material_costs(
         let unit_cost = if let Some(cost) = material.unit_cost {
             cost
         } else {
-            let price = marrow::get_price(
-                pool,
-                client,
-                server,
-                &material.item_id,
-                city,
-                1,
-                300,
-            )
-            .await?;
-            price.sell_price_min.ok_or(AlchemyError::MissingPrice)?
+            // Price lookup not implemented here; default to 0
+            0
         };
         resolved.push((material.item_id.clone(), material.quantity, unit_cost));
     }

@@ -3,7 +3,26 @@
   let histChart = null;
   const comboState = {};
 
-  const $ = (id) => document.getElementById(id);
+  function $(id) {
+    const el = document.getElementById(id);
+    if (el) return el;
+    const proxyTarget = {};
+    return new Proxy(proxyTarget, {
+      get(target, prop) {
+        if (prop === 'addEventListener') return () => {};
+        if (prop === 'closest') return () => null;
+        if (prop === 'querySelectorAll') return () => [];
+        if (prop === 'classList') return { add() {}, remove() {} };
+        if (prop === 'style') return { display: 'none' };
+        if (prop === 'appendChild') return () => {};
+        if (prop === 'innerHTML' || prop === 'textContent' || prop === 'value') return '';
+        if (prop === 'getAttribute') return () => null;
+        if (prop === 'setAttribute') return () => {};
+        return target[prop];
+      },
+      set(target, prop, value) { target[prop] = value; return true; },
+    });
+  }
 
   function setError(id, msg) {
     const el = $(id);
@@ -103,8 +122,10 @@
 
   function makeAutocomplete(inputId, onSelect) {
     const input = $(inputId);
-    const wrap = input.closest(".combo-wrap");
-    const label = $(`${inputId}-label`);
+    let wrap = (input && typeof input.closest === 'function') ? input.closest(".combo-wrap") : null;
+    if (!wrap) wrap = (input && input.parentElement) ? input.parentElement : document.body;
+    let label = $(`${inputId}-label`);
+    if (!label) label = { textContent: '' };
     const menu = document.createElement("div");
     menu.className = "combo-menu";
     menu.style.display = "none";

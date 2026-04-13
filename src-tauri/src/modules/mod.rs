@@ -1,4 +1,5 @@
 pub mod alchemy;
+pub mod alchemy_api_stubs;
 pub mod chronicle;
 pub mod effigy;
 pub mod hemorrhage;
