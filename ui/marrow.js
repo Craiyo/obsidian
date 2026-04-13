@@ -386,128 +386,16 @@
 
   /* Price history feature removed */
 
-  async function addFavourite() {
-    const input = $("fav-item");
-    const id = input.value.trim();
-    setError("fav-error", "");
-    if (!id) return;
+  // Favourites feature removed; placeholder to avoid dangling references
+async function addFavourite() { return; }
 
-    try {
-      // If the user typed a display name, try to resolve it to a uniquename via search.
-      let payloadId = id;
-      try {
-        const sr = await fetch(`${BASE}/api/v1/marrow/search?q=${encodeURIComponent(id)}`);
-        if (sr.ok) {
-          const items = await sr.json();
-          if (Array.isArray(items) && items.length > 0) {
-            // Prefer exact match on display_name or uniquename, otherwise take first result.
-            const exact = items.find(it => (it.display_name || '').toLowerCase() === id.toLowerCase() || it.uniquename.toLowerCase() === id.toLowerCase());
-            payloadId = exact ? exact.uniquename : items[0].uniquename;
-          }
-        }
-      } catch (e) {
-        // ignore search failures and fall back to raw input
-      }
-
-      const r = await fetch(`${BASE}/api/v1/marrow/favourites`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ uniquename: payloadId }),
-      });
-      if (!r.ok) throw new Error("Failed to add favourite");
-      input.value = "";
-      await loadFavourites();
-    } catch (err) {
-      setError("fav-error", err?.message || "Failed to add favourite");
-    }
-  }
-
-  async function removeFavourite(id) {
-    const list = $("fav-list");
-    try {
-      const r = await fetch(`${BASE}/api/v1/marrow/favourites/${encodeURIComponent(id)}`, {
-        method: "DELETE",
-      });
-      if (!r.ok) throw new Error();
-      await loadFavourites();
-    } catch {
-      list.className = "error-msg";
-      list.textContent = "Failed to remove favourite";
-    }
-  }
-
-  async function loadFavourites() {
-    const list = $("fav-list");
-    list.className = "muted";
-    list.textContent = "Loading...";
-    try {
-      const r = await fetch(`${BASE}/api/v1/marrow/favourites`);
-      if (r.status === 404) {
-        // Favourites table/endpoint may not be present on some backends — treat as empty
-        list.className = "muted";
-        list.textContent = "No favourites yet";
-        return;
-      }
-      if (!r.ok) throw new Error();
-      const favs = await r.json();
-      if (!favs.length) {
-        list.className = "muted";
-        list.textContent = "No favourites yet";
-        return;
-      }
-
-      list.className = "";
-      // Resolve display names for each favourite; fall back to uniquename
-      const rows = await Promise.all(
-        favs.map(async (id) => {
-          try {
-            const r = await fetch(`${BASE}/api/v1/marrow/search?q=${encodeURIComponent(id)}`);
-            if (r.ok) {
-              const items = await r.json();
-              const found = Array.isArray(items) ? items.find((it) => it.uniquename === id) : null;
-              const disp = found ? (found.display_name || id) : id;
-              return { id, disp };
-            }
-          } catch (e) {
-            // ignore and fall back
-          }
-          return { id, disp: id };
-        })
-      );
-
-      list.innerHTML = rows
-        .map(
-          ({ id, disp }) => `
-          <div class="fav-row" data-uniquename="${id}">
-            <span class="fav-name">${disp}</span>
-            <button class="fav-remove" data-id="${id}">✕</button>
-          </div>`
-        )
-        .join("");
-
-      list.querySelectorAll(".fav-row").forEach((row) => {
-        row.addEventListener("click", (e) => {
-          if (e.target.closest(".fav-remove")) return;
-          fillInputs(row.dataset.uniquename);
-        });
-      });
-      list.querySelectorAll(".fav-remove").forEach((btn) => {
-        btn.addEventListener("click", (e) => {
-          e.stopPropagation();
-          removeFavourite(btn.dataset.id);
-        });
-      });
-    } catch {
-      list.className = "error-msg";
-      list.textContent = "Failed to load favourites";
-    }
-  }
+  // Favourites feature removed. No-op functions kept for compatibility.
+async function removeFavourite(id) { return; }
+async function loadFavourites() { return; }
 
   document.addEventListener("DOMContentLoaded", () => {
-    $("fav-add").addEventListener("click", addFavourite);
 
     loadGold();
-    loadFavourites();
 
     // Direct-Link: Listen for live data from the sniffer
     if (window.__TAURI__) {
