@@ -321,12 +321,13 @@
       // Normalize session id to a Number to avoid NaN fetches
       currentSessionId = session.session_id;
 
-      // Update queue with real craft_amounts from the planned items
+      // Update queue with real craft_amounts and best_city from the planned items
       session.items.forEach(pi => {
         const qi = queue.find(q => q.uniquename === pi.uniquename);
         if (qi) {
           qi.craft_amount = pi.craft_amount;
-          qi.best_city = pi.best_city || qi.best_city || null;
+          // Prefer per-item best_city, fall back to session.city, then existing value
+          qi.best_city = pi.best_city || session.city || qi.best_city || null;
         }
       });
       renderQueue();
@@ -347,11 +348,21 @@
     const tbody = $("alchemy-shop-body");
     const rrrBar = $("alchemy-shopping-rrr");
 
+    // Format RRR: session.rrr may be fractional (0-1) or session.rrr_pct may be 0-100 or 0-1 depending on backend shape.
+    let rrrDisplay = '—';
+    if (session.rrr != null && Number.isFinite(session.rrr)) {
+      rrrDisplay = `${(session.rrr * 100).toFixed(1)}%`;
+    } else if (session.rrr_pct != null && Number.isFinite(session.rrr_pct)) {
+      // If rrr_pct looks like a 0-1 fraction, convert to percent; if >1, assume already percent
+      const v = Number(session.rrr_pct);
+      rrrDisplay = v > 1 ? `${v.toFixed(1)}%` : `${(v * 100).toFixed(1)}%`;
+    }
+
     rrrBar.innerHTML = `
       <span>Account: <strong>${session.account_name}</strong></span>
       <span>City: <strong>${session.city || '—'}</strong></span>
       <span>Focus: <strong>${session.use_focus ? "Yes" : "No"}</strong></span>
-      <span>RRR: <strong>${session.rrr_pct}%</strong></span>
+      <span>RRR: <strong>${rrrDisplay}</strong></span>
     `;
 
     tbody.innerHTML = session.materials.map(m => `
