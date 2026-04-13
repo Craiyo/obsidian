@@ -7,7 +7,7 @@ use serde::Deserialize;
 
 use crate::api::{ApiError, AppState};
 use crate::modules::alchemy;
-use crate::modules::alchemy_api_stubs as alchemy_api;
+use crate::modules::alchemy as alchemy_api;
 
 #[derive(Debug, Deserialize)]
 pub struct SessionListQuery {
