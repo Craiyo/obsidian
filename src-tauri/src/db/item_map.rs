@@ -1,24 +1,16 @@
-use std::{collections::HashMap, fs, path::Path};
-use serde::{Serialize, Deserialize};
+use serde::Serialize;
 use serde_json::Value;
+use std::{collections::HashMap, fs, path::Path};
 use sqlx::SqlitePool;
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct CuratedRecipe {
-    pub uniquename: String,
-    pub amount: i64,
-    pub materials: Vec<CraftResource>,
-    pub station: String,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize)]
 pub struct CraftResource {
     pub uniquename: String,
     pub count: i64,
     pub enchantment_level: i64,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone)]
 pub struct ItemRow {
     pub uniquename: String,
     pub display_name: String,
@@ -66,17 +58,9 @@ pub fn load_display_names(path: &Path) -> Result<HashMap<String, String>, Box<dy
 }
 
 /// Parse the items.json file and return rows for insertion.
-pub fn parse_items_json(path: &Path, display_names: &HashMap<String, String>, curated_path: Option<&Path>) -> Result<Vec<ItemRow>, Box<dyn std::error::Error>> {
+pub fn parse_items_json(path: &Path, display_names: &HashMap<String, String>) -> Result<Vec<ItemRow>, Box<dyn std::error::Error>> {
     let content = fs::read_to_string(path)?;
     let root: Value = serde_json::from_str(&content)?;
-
-    let curated_map: HashMap<String, CuratedRecipe> = if let Some(p) = curated_path {
-        let cur_content = fs::read_to_string(p)?;
-        let list: Vec<CuratedRecipe> = serde_json::from_str(&cur_content)?;
-        list.into_iter().map(|r| (r.uniquename.clone(), r)).collect()
-    } else {
-        HashMap::new()
-    };
 
     let items_obj = root
         .get("items")
@@ -102,21 +86,8 @@ pub fn parse_items_json(path: &Path, display_names: &HashMap<String, String>, cu
             };
 
             let tier = get_i64(item_obj, "@tier").unwrap_or(0);
-            let mut show_in_marketplace = get_bool(item_obj, "@showinmarketplace").unwrap_or(false);
-            
-            // Force include journals, artifacts, and anything with a shop category
-            if base_uniquename.contains("JOURNAL") || base_uniquename.contains("ARTEFACT") || item_obj.get("@shopcategory").is_some() {
-                show_in_marketplace = true;
-            }
-
-            let mut craft = parse_crafting(item_obj.get("craftingrequirements"));
-
-            // OVERRIDE with curated recipe if available
-            if let Some(cur) = curated_map.get(base_uniquename) {
-                craft.craftable = true;
-                craft.craft_amount = cur.amount;
-                craft.craft_resources = Some(serde_json::to_string(&cur.materials).unwrap_or_default());
-            }
+            let show_in_marketplace = get_bool(item_obj, "@showinmarketplace").unwrap_or(false);
+            let craft = parse_crafting(item_obj.get("craftingrequirements"));
 
             let display_name = display_names
                 .get(base_uniquename)
@@ -157,11 +128,7 @@ pub fn parse_items_json(path: &Path, display_names: &HashMap<String, String>, cu
                         .cloned()
                         .unwrap_or_else(|| derive_display_name(&row.uniquename));
 
-                    if let Some(cur) = curated_map.get(&row.uniquename) {
-                        row.craftable = true;
-                        row.craft_amount = cur.amount;
-                        row.craft_resources = Some(serde_json::to_string(&cur.materials).unwrap_or_default());
-                    } else if ench.craft.craftable {
+                    if ench.craft.craftable {
                         row.craftable = true;
                         row.craft_silver = ench.craft.craft_silver;
                         row.craft_time = ench.craft.craft_time;
@@ -280,7 +247,7 @@ fn parse_craft_resources(node: Option<&Value>) -> Vec<CraftResource> {
     // craftresource can be a single object or list; normalize to Vec.
     as_vec(resource_node)
         .into_iter()
-        .filter_map(|entry: &Value| {
+        .filter_map(|entry| {
             let obj = entry.as_object()?;
             let uniquename = get_str(obj, "@uniquename")?.to_string();
             let count = get_i64(obj, "@count").unwrap_or(0);

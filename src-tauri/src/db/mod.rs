@@ -62,11 +62,7 @@ pub async fn seed_items_if_empty(pool: &SqlitePool, _app: &tauri::AppHandle) -> 
         .fetch_one(pool)
         .await?;
 
-    let has_recipes: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM items WHERE craft_resources IS NOT NULL")
-        .fetch_one(pool)
-        .await?;
-
-    if count > 0 && has_recipes > 100 {
+    if count > 0 {
         return Ok(());
     }
 
@@ -83,9 +79,7 @@ pub async fn seed_items_if_empty(pool: &SqlitePool, _app: &tauri::AppHandle) -> 
     let display_names = item_map::load_display_names(&display_names_path)
         .map_err(|e| DbError::Io(std::io::Error::new(std::io::ErrorKind::Other, e.to_string())))?;
 
-    let curated_path = candidates_for("assets/curated_recipes.json");
-
-    let rows = item_map::parse_items_json(&items_path, &display_names, curated_path.as_deref())
+    let rows = item_map::parse_items_json(&items_path, &display_names)
         .map_err(|e| DbError::Io(std::io::Error::new(std::io::ErrorKind::Other, e.to_string())))?;
 
     // Insert all parsed items into the DB (do not filter by item_names.json)
