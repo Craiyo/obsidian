@@ -43,8 +43,6 @@
     .top-bar{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px}
     .top-left{display:flex;align-items:center;gap:8px}
     .badge{font-size:10px;padding:2px 8px;border-radius:999px;background:#ede9fe;color:#6B46C1}
-    .hist-wrap{position:relative;min-height:180px}
-    #hist-placeholder{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:#aaa;font-size:12px}
     .combo-wrap{position:relative;min-width:240px}
     .combo-label{display:block;font-size:11px;color:#666;margin-top:4px;min-height:14px}
     .combo-menu{position:absolute;top:100%;left:0;right:0;z-index:20;background:#fff;border:1px solid #e5e3ef;border-radius:8px;margin-top:6px;max-height:240px;overflow:auto;box-shadow:0 8px 24px rgba(17,17,17,0.08)}
@@ -186,60 +184,7 @@
       </section>
 
 
-      <section id="section-history" class="section-card">
-        <div class="section-head"><h2>Price History</h2></div>
-        <div class="search-bar">
-          <div class="input-group">
-            <label>Item</label>
-            <div class="autocomplete-container">
-              <input type="text" id="hist-item" placeholder="Search item..." />
-              <div id="hist-item-list" class="autocomplete-results"></div>
-            </div>
-          </div>
-          <div class="input-group">
-            <label>Sell City</label>
-            <select id="hist-city">
-              <option value="BlackMarket">Black Market</option>
-              <option value="Caerleon">Caerleon</option>
-              <option value="Bridgewatch">Bridgewatch</option>
-              <option value="Lymhurst">Lymhurst</option>
-              <option value="Martlock" selected>Martlock</option>
-              <option value="Thetford">Thetford</option>
-              <option value="FortSterling">Fort Sterling</option>
-            </select>
-          </div>
-          <div class="input-group">
-            <label>Material Source</label>
-            <select id="buy-city">
-              <option value="Martlock" selected>Martlock</option>
-              <option value="Caerleon">Caerleon</option>
-              <option value="Bridgewatch">Bridgewatch</option>
-              <option value="Lymhurst">Lymhurst</option>
-              <option value="Thetford">Thetford</option>
-              <option value="FortSterling">Fort Sterling</option>
-            </select>
-          </div>
-          <div class="input-group">
-            <label>Days</label>
-            <input type="number" id="hist-days" value="14" min="1" max="90" />
-          </div>
-          <button id="hist-fetch" class="btn-primary">Analyze Trade</button>
-        </div>
-          <div id="hist-error" class="error-msg"></div>
-          <div class="hist-wrap">
-            <div id="hist-placeholder">Fetch history to render chart</div>
-            <canvas id="hist-chart" height="160"></canvas>
-          </div>
-
-          <div id="recommend-panel" style="display:none;margin-top:14px">
-            <div id="recommend-verdict"></div>
-            <div id="recommend-details"></div>
-          </div>
-
-        </div>
-      </section>
-
-      <section id="section-favourites" class="section-card">
+<section id="section-favourites" class="section-card">
         <div class="section-head"><h2>Favourites</h2></div>
         <div class="section-body">
           <div class="row">
@@ -252,7 +197,6 @@
       </section>
     </main>
   </div>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
   <script src="../app.js"></script>
   <script src="../marrow.js"></script>
 </body>

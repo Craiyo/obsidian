@@ -385,117 +385,7 @@
     }
   }
 
-  async function fetchHistory() {
-    const item = comboState["hist-item"]?.uniquename || "";
-    const city = $("hist-city").value;
-    const days = $("hist-days").value;
-    const btn = $("hist-fetch");
-    const placeholder = $("hist-placeholder");
-
-    setError("hist-error", "");
-
-    if (!item) {
-      setError("hist-error", "Enter an item ID");
-      return;
-    }
-
-    const old = btn.textContent;
-    btn.disabled = true;
-    btn.textContent = "Fetching…";
-
-    try {
-      const r = await fetch(
-        `${BASE}/api/v1/marrow/history_bulk/${encodeURIComponent(item)}?city=${encodeURIComponent(city)}&days=${encodeURIComponent(days)}`
-      );
-      if (!r.ok) throw new Error("History fetch failed");
-      const results = await r.json();
-      
-      const qualityNames = ["Normal", "Good", "Outstanding", "Excellent", "Masterpiece"];
-      const colors = ["#9ca3af", "#22c55e", "#3b82f6", "#a855f7", "#eab308"];
-      
-      let allLabels = new Set();
-      results.forEach(d => {
-        if (d && d.points) d.points.forEach(p => allLabels.add(String(p.timestamp || "").slice(0, 10)));
-      });
-      const labels = Array.from(allLabels).sort();
-      
-      const datasets = [];
-      let totalVolumes = new Array(labels.length).fill(0);
-      
-      // Calculate volumes first for the background dataset
-      results.forEach((d) => {
-        if (!d || !d.points) return;
-        labels.forEach((label, idx) => {
-            const pt = d.points.find(p => String(p.timestamp || "").slice(0, 10) === label);
-            if (pt) totalVolumes[idx] += pt.item_count;
-        });
-      });
-
-      // Volume as the first dataset (rendered background)
-      datasets.push({
-          label: "Total Volume",
-          data: totalVolumes,
-          type: "bar",
-          backgroundColor: "rgba(107, 70, 193, 0.12)",
-          yAxisID: "y1",
-          order: 2
-      });
-      
-      results.forEach((d, i) => {
-        if (!d || !d.points || d.points.length === 0) return;
-        
-        const qPrices = labels.map(label => {
-            const pt = d.points.find(p => String(p.timestamp || "").slice(0, 10) === label);
-            return pt ? pt.avg_price : null;
-        });
-        
-        datasets.push({
-            label: `Q${d.quality}`,
-            data: qPrices,
-            borderColor: colors[d.quality-1],
-            backgroundColor: "transparent",
-            borderWidth: 2,
-            tension: 0.3,
-            spanGaps: true,
-            yAxisID: "y",
-            order: 1
-        });
-      });
-
-      if (histChart) {
-        histChart.destroy();
-        histChart = null;
-      }
-
-      if (labels.length === 0) {
-        placeholder.textContent = "No history points";
-        placeholder.style.display = "flex";
-      } else {
-        placeholder.style.display = "none";
-        const ctx = $("hist-chart").getContext("2d");
-        histChart = new Chart(ctx, {
-            type: "line",
-            data: { labels: labels, datasets: datasets },
-            options: {
-                responsive: true, maintainAspectRatio: false, interaction: { mode: 'index', intersect: false },
-                scales: {
-                    y: { type: "linear", display: true, position: "left", title: { display: true, text: "Silver" }, ticks: { callback(value) { return Number(value).toLocaleString(); } } },
-                    y1: { type: "linear", display: true, position: "right", title: { display: true, text: "Volume" }, grid: { drawOnChartArea: false }, beginAtZero: true }
-                }
-            }
-        });
-      }
-
-      await fetchRecommendation(item, city, days);
-    } catch (err) {
-      console.error(err);
-      setError("hist-error", err?.message || "Network error");
-    } finally {
-      btn.disabled = false;
-      btn.textContent = old;
-    }
-  }
-
+  /* Price history feature removed */
 
   async function addFavourite() {
     const input = $("fav-item");
@@ -609,18 +499,7 @@
   }
 
   document.addEventListener("DOMContentLoaded", () => {
-    $("hist-fetch").addEventListener("click", fetchHistory);
     $("fav-add").addEventListener("click", addFavourite);
-    makeAutocomplete("hist-item", () => {});
-    document.addEventListener("click", (e) => {
-      ["hist-item"].forEach((id) => {
-        const state = comboState[id];
-        if (!state) return;
-        if (!state.input.closest(".combo-wrap").contains(e.target)) {
-          closeMenu(id);
-        }
-      });
-    });
 
     loadGold();
     loadFavourites();
@@ -635,7 +514,7 @@
         if (currentItem && itemIds.includes(currentItem)) {
           console.log("[marrow-direct] Live update detected for", currentItem);
           const city = $("price-city").value;
-          const days = $("hist-days").value;
+          const days = 14; // history UI removed, default to 14 days for live updates
           fetchRecommendation(currentItem, city, days);
         }
       });
